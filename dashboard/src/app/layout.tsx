@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import DashboardContainer from "@/components/DashboardContainer";
+import { ToastProvider } from "@/components/Toast";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -18,10 +19,12 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body className={`min-h-screen bg-surface-200 ${inter.variable} font-sans selection:bg-accent-purple/30 selection:text-accent-purple`}>
-                <DashboardContainer>
-                    {children}
-                </DashboardContainer>
+            <body className={`min-h-screen bg-slate-100/70 ${inter.variable} font-sans selection:bg-indigo-500/20 selection:text-indigo-600`}>
+                <ToastProvider>
+                    <DashboardContainer>
+                        {children}
+                    </DashboardContainer>
+                </ToastProvider>
             </body>
         </html>
     );

@@ -18,66 +18,63 @@ export default function KpiCard({
     change,
     trend = "neutral",
     icon: Icon,
-    accentColor = "from-accent-purple to-accent-blue",
+    accentColor = "from-indigo-500 to-purple-600",
     subtitle,
     onClick,
 }: KpiCardProps) {
-    const trendColor =
+    const trendBadge =
         trend === "up"
-            ? "text-emerald-600"
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
             : trend === "down"
-                ? "text-red-500"
-                : "text-slate-500";
+            ? "bg-rose-50 text-rose-700 border-rose-200"
+            : "bg-slate-100 text-slate-700 border-slate-200";
 
-    const TrendIcon =
-        trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-
-    const clickable = !!onClick;
+    const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+    const isClickable = !!onClick;
 
     return (
         <div
-            className={`glass-card p-4 lg:p-5 relative overflow-hidden group ${clickable ? "cursor-pointer hover:ring-1 hover:ring-accent-purple/30" : ""}`}
+            className={`p-5 relative overflow-hidden group ${
+                isClickable ? "saas-card-interactive" : "saas-card"
+            }`}
             onClick={onClick}
-            role={clickable ? "button" : undefined}
-            tabIndex={clickable ? 0 : undefined}
-            onKeyDown={clickable ? (e) => { if (e.key === "Enter") onClick?.(); } : undefined}
+            role={isClickable ? "button" : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            onKeyDown={
+                isClickable
+                    ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onClick?.();
+                          }
+                      }
+                    : undefined
+            }
         >
-            {/* Gradient accent glow */}
-            <div
-                className={`absolute -top-12 -right-12 w-32 h-32 bg-gradient-to-br ${accentColor} rounded-full opacity-[0.07] blur-2xl group-hover:opacity-[0.12] transition-opacity`}
-            />
-
-            <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                    <div
-                        className={`w-10 h-10 rounded-xl bg-gradient-to-br ${accentColor} flex items-center justify-center opacity-90`}
-                    >
-                        <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {change && (
-                            <div
-                                className={`flex items-center gap-1 text-xs font-semibold ${trendColor} px-2 py-1 rounded-full bg-black/[0.03]`}
-                            >
-                                <TrendIcon className="w-3 h-3" />
-                                {change}
-                            </div>
-                        )}
-                        {clickable && (
-                            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-accent-purple transition-colors" />
-                        )}
-                    </div>
+            <div className="flex items-start justify-between mb-3">
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${accentColor} flex items-center justify-center shadow-xs text-white`}>
+                    <Icon className="w-5 h-5" />
                 </div>
+                {change && (
+                    <div className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${trendBadge}`}>
+                        <TrendIcon className="w-3.5 h-3.5" />
+                        <span>{change}</span>
+                    </div>
+                )}
+            </div>
 
-                <p className="text-sm lg:text-base text-slate-500 font-semibold mb-1.5">{title}</p>
-                <p className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight mb-2">{value}</p>
+            <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{title}</h3>
+                <p className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">{value}</p>
                 {subtitle && (
-                    <p className={`text-sm font-medium leading-relaxed ${subtitle.toLowerCase().startsWith("click") ? "text-accent-purple font-bold" : "text-slate-500"}`}>
-                        {subtitle}
-                        {clickable && !subtitle.toLowerCase().includes("click") && (
-                            <span className="ml-1 text-accent-purple font-bold">· click to expand</span>
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500 font-medium">
+                        <span>{subtitle}</span>
+                        {isClickable && (
+                            <span className="text-indigo-600 font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                                Details <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
                         )}
-                    </p>
+                    </div>
                 )}
             </div>
         </div>

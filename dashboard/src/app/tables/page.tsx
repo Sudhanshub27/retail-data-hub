@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useApi } from "@/hooks/useApi";
+import { useToast } from "@/components/Toast";
 import { PageSkeleton } from "@/components/Skeleton";
 import {
     Database,
     Table2,
     Star,
-    Box,
-    Layers,
     Download,
     ChevronLeft,
     ChevronRight,
@@ -32,10 +31,6 @@ import {
 import { API_BASE } from "@/config";
 import PageHeader from "@/components/PageHeader";
 
-/* ── Constants ── */
-
-
-
 const LAYER_META: Record<string, { label: string; color: string; icon: any; description: string }> = {
     gold: {
         label: "Gold",
@@ -45,7 +40,7 @@ const LAYER_META: Record<string, { label: string; color: string; icon: any; desc
     },
     silver: {
         label: "Silver",
-        color: "#94a3b8",
+        color: "#64748b",
         icon: Link2,
         description: "Cleaned & validated data — deduped, quality-checked",
     },
@@ -67,7 +62,6 @@ function fmtNum(n: number | undefined | null): string {
 }
 
 /* ── Paginated Table Viewer ── */
-
 function PaginatedTable({
     layer,
     tableName,
@@ -103,7 +97,7 @@ function PaginatedTable({
     if (!pageData) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 text-accent-purple animate-spin" />
+                <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
             </div>
         );
     }
@@ -115,43 +109,44 @@ function PaginatedTable({
     const endRow = Math.min(page * 20, totalRows);
 
     return (
-        <div>
+        <div className="space-y-4">
             {/* Data grid */}
-            <div className="overflow-x-auto rounded-xl border border-black/[0.06]">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs bg-white">
                 <table className="w-full text-xs min-w-[800px]">
                     <thead>
-                        <tr style={{ background: "rgba(139,92,246,0.1)" }}>
-                            <th className="text-center px-2 py-2.5 text-[10px] font-bold text-slate-700 border-b border-black/[0.1] w-12">#</th>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-700 w-12 border-r border-slate-200/60">#</th>
                             {columns.map((col: any, i: number) => (
                                 <th
                                     key={i}
-                                    className="text-left px-3 py-2.5 text-[10px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap border-b border-black/[0.1]"
+                                    className="text-left px-3.5 py-3 text-[11px] font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap border-r border-slate-200/60 last:border-r-0"
                                 >
-                                    <div className="flex items-center gap-1">
-                                        {col.is_pk && <Key className="w-3 h-3 text-yellow-500" />}
+                                    <div className="flex items-center gap-1.5">
+                                        {col.is_pk && <Key className="w-3.5 h-3.5 text-amber-500" />}
                                         {col.fk_to && (
                                             <button onClick={() => onNavigate(col.fk_to)} title={`Jump to ${col.fk_to}`}>
-                                                <Link2 className="w-3 h-3 text-blue-500 hover:text-blue-400" />
+                                                <Link2 className="w-3.5 h-3.5 text-indigo-500 hover:text-indigo-700 transition-colors" />
                                             </button>
                                         )}
-                                        {col.name}
+                                        <span>{col.name}</span>
                                     </div>
                                 </th>
                             ))}
                         </tr>
                     </thead>
-                    <tbody className={loadingRows ? "opacity-40 transition-opacity" : "transition-opacity"}>
+                    <tbody className={`divide-y divide-slate-100 ${loadingRows ? "opacity-40 transition-opacity" : "transition-opacity"}`}>
                         {rows.map((row: any, ri: number) => (
-                            <tr key={ri} className="border-b border-black/[0.04] hover:bg-black/[0.02] transition-colors">
-                                <td className="text-center px-2 py-2 text-[10px] text-slate-600 font-mono">{startRow + ri}</td>
+                            <tr key={ri} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="text-center px-3 py-2.5 text-[11px] text-slate-500 font-mono tabular-nums border-r border-slate-200/60">{startRow + ri}</td>
                                 {columns.map((col: any, ci: number) => {
                                     const val = row[col.name];
                                     const display = val === null || val === undefined ? "—" : String(val);
                                     return (
                                         <td
                                             key={ci}
-                                            className={`px-3 py-2 whitespace-nowrap font-mono text-[11px] ${val === null ? "text-slate-500 italic font-semibold" : "text-slate-900 font-semibold"
-                                                }`}
+                                            className={`px-3.5 py-2.5 whitespace-nowrap font-mono tabular-nums text-xs border-r border-slate-200/60 last:border-r-0 ${
+                                                val === null ? "text-slate-400 italic" : "text-slate-900 font-medium"
+                                            }`}
                                             title={display}
                                         >
                                             {display.length > 35 ? display.slice(0, 35) + "…" : display}
@@ -164,64 +159,44 @@ function PaginatedTable({
                 </table>
             </div>
 
-            {/* Pagination controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4 px-1">
-                <p className="text-[10px] sm:text-xs text-slate-600 font-semibold order-2 sm:order-1">
+            {/* Touch-Friendly Pagination Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-5 gap-4 px-1">
+                <p className="text-xs text-slate-600 font-medium tabular-nums order-2 sm:order-1">
                     Showing <span className="text-slate-900 font-bold">{fmtNum(startRow)}</span> – <span className="text-slate-900 font-bold">{fmtNum(endRow)}</span> of <span className="text-slate-900 font-bold">{fmtNum(totalRows)}</span> rows
                 </p>
 
-                <div className="flex items-center gap-1 order-1 sm:order-2">
-                    {/* First */}
+                <div className="flex items-center gap-1.5 order-1 sm:order-2">
                     <button
                         onClick={() => fetchPage(1)}
                         disabled={page <= 1}
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-indigo-500"
                         title="First page"
                     >
                         <ChevronsLeft className="w-4 h-4" />
                     </button>
-                    {/* Prev */}
                     <button
                         onClick={() => fetchPage(page - 1)}
                         disabled={page <= 1}
-                        className="px-2 sm:px-3 h-7 sm:h-8 rounded-lg flex items-center gap-1 text-[10px] sm:text-xs font-medium text-slate-400 hover:text-slate-800 hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="h-9 px-3 rounded-lg flex items-center gap-1 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-indigo-500"
                     >
-                        <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Prev</span>
+                        <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Prev</span>
                     </button>
 
-                    {/* Page numbers */}
-                    {(() => {
-                        const pages: number[] = [];
-                        const start = Math.max(1, page - 1);
-                        const end = Math.min(totalPages, page + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        return pages.map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => fetchPage(p)}
-                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${p === page
-                                    ? "bg-accent-purple/25 text-accent-purple"
-                                    : "text-slate-500 hover:text-slate-800 hover:bg-black/[0.04]"
-                                    }`}
-                            >
-                                {p}
-                            </button>
-                        ));
-                    })()}
+                    <span className="text-xs font-bold text-slate-800 px-3 tabular-nums">
+                        Page {page} of {totalPages}
+                    </span>
 
-                    {/* Next */}
                     <button
                         onClick={() => fetchPage(page + 1)}
                         disabled={page >= totalPages}
-                        className="px-2 sm:px-3 h-7 sm:h-8 rounded-lg flex items-center gap-1 text-[10px] sm:text-xs font-medium text-slate-400 hover:text-slate-800 hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="h-9 px-3 rounded-lg flex items-center gap-1 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-indigo-500"
                     >
-                        <span className="hidden sm:inline">Next</span> <ChevronRight className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Next</span> <ChevronRight className="w-4 h-4" />
                     </button>
-                    {/* Last */}
                     <button
                         onClick={() => fetchPage(totalPages)}
                         disabled={page >= totalPages}
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-indigo-500"
                         title="Last page"
                     >
                         <ChevronsRight className="w-4 h-4" />
@@ -233,9 +208,9 @@ function PaginatedTable({
 }
 
 /* ── Main Page ── */
-
 export default function DataTablesPage() {
     const { data, loading } = useApi<any>("/api/tables");
+    const { showToast } = useToast();
     const [selectedTable, setSelectedTable] = useState<{ layer: string; name: string } | null>(null);
     const [search, setSearch] = useState("");
     const [dlFormat, setDlFormat] = useState<"csv" | "json">("csv");
@@ -290,9 +265,9 @@ export default function DataTablesPage() {
     const handleDownload = () => {
         if (!selectedTable) return;
         window.open(`${API_BASE}/api/tables/download/${selectedTable.layer}/${selectedTable.name}?format=${dlFormat}`, "_blank");
+        showToast(`Downloading ${selectedTable.name}.${dlFormat}...`, "success");
     };
 
-    // Total counts
     const totalTables = Object.values(data).reduce((s: number, l: any) => s + (l as any[]).length, 0);
     const totalRows = Object.values(data).reduce((s: number, l: any) => s + (l as any[]).reduce((ss: number, t: any) => ss + t.rows, 0), 0);
 
@@ -304,19 +279,28 @@ export default function DataTablesPage() {
                 subtitle={`${totalTables} tables across Bronze → Silver → Gold · ${fmtNum(totalRows)} total rows`}
             />
 
-            {/* Search bar */}
-            <div className="relative w-full lg:max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            {/* Search bar with clear icon */}
+            <div className="relative w-full sm:max-w-md">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search tables by name or description..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-black/[0.03] border border-black/10 text-slate-900 font-semibold placeholder-slate-600 focus:outline-none focus:border-accent-purple/50 transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl text-sm bg-slate-50 border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
+                {search && (
+                    <button
+                        onClick={() => setSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                        aria-label="Clear search"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
             </div>
 
-            {/* ── Layer Sections ── */}
+            {/* Layer Sections */}
             {(["gold", "silver", "bronze"] as const).map((layer) => {
                 const meta = LAYER_META[layer];
                 const tables = filterTables(data[layer] || []);
@@ -324,18 +308,16 @@ export default function DataTablesPage() {
 
                 return (
                     <section key={layer} id={layer}>
-                        {/* Layer header */}
                         <div className="flex items-center gap-3 mb-4">
                             <meta.icon className="w-5 h-5" style={{ color: meta.color }} />
                             <div>
                                 <h2 className="text-base font-bold text-slate-900">{meta.label} Layer</h2>
-                                <p className="text-xs text-slate-600 font-semibold">{meta.description}</p>
+                                <p className="text-xs text-slate-600 font-medium">{meta.description}</p>
                             </div>
                             <span className="ml-auto text-xs text-slate-700 font-bold font-mono">{tables.length} tables</span>
                         </div>
 
-                        {/* Table list — clean horizontal cards */}
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                             {tables.map((tbl: any) => {
                                 const isSelected = selectedTable?.layer === layer && selectedTable?.name === tbl.name;
                                 const isFact = tbl.table_type === "fact";
@@ -345,53 +327,46 @@ export default function DataTablesPage() {
                                     <button
                                         key={tbl.name}
                                         onClick={() => handleSelect(layer, tbl.name)}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all ${isSelected
-                                            ? "bg-accent-purple/[0.08] ring-1 ring-accent-purple/40"
-                                            : "bg-black/[0.02] hover:bg-black/[0.04]"
-                                            }`}
-                                        style={{ border: `1px solid ${isSelected ? "rgba(139,92,246,0.3)" : "rgba(0,0,0,0.04)"}` }}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all ${
+                                            isSelected
+                                                ? "bg-indigo-50/80 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs"
+                                                : "bg-white border border-slate-200/80 hover:border-slate-300 hover:shadow-xs"
+                                        }`}
                                     >
-                                        {/* Icon */}
                                         <div
                                             className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                                             style={{ background: `${meta.color}15` }}
                                         >
-                                            {isFact ? <Star className="w-5 h-5 text-yellow-400" /> :
-                                                isDim ? <Link2 className="w-5 h-5 text-blue-400" /> :
+                                            {isFact ? <Star className="w-5 h-5 text-amber-500" /> :
+                                                isDim ? <Link2 className="w-5 h-5 text-indigo-500" /> :
                                                     <Table2 className="w-5 h-5" style={{ color: meta.color }} />}
                                         </div>
 
-                                        {/* Name + description */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-bold text-slate-900">{tbl.name}</span>
                                                 {(isFact || isDim) && (
-                                                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${isFact ? "text-yellow-600 bg-yellow-400/15" : "text-blue-600 bg-blue-400/15"
-                                                        }`}>
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                                        isFact ? "text-amber-700 bg-amber-100" : "text-indigo-700 bg-indigo-100"
+                                                    }`}>
                                                         {tbl.table_type}
                                                     </span>
                                                 )}
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/[0.05] text-slate-600 font-bold font-mono">{tbl.format}</span>
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold font-mono">{tbl.format}</span>
                                             </div>
                                             <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">{tbl.description}</p>
                                         </div>
 
-                                        {/* Stats */}
                                         <div className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
                                             <div className="text-right hidden sm:block">
-                                                <p className="text-sm font-bold text-slate-900">{fmtNum(tbl.rows)}</p>
-                                                <p className="text-[10px] text-slate-600 font-semibold">rows</p>
+                                                <p className="text-sm font-bold text-slate-900 tabular-nums">{fmtNum(tbl.rows)}</p>
+                                                <p className="text-[10px] text-slate-500 font-semibold uppercase">rows</p>
                                             </div>
                                             <div className="text-right hidden sm:block">
-                                                <p className="text-sm font-bold text-slate-900">{tbl.columns}</p>
-                                                <p className="text-[10px] text-slate-600 font-semibold">cols</p>
+                                                <p className="text-sm font-bold text-slate-900 tabular-nums">{tbl.columns}</p>
+                                                <p className="text-[10px] text-slate-500 font-semibold uppercase">cols</p>
                                             </div>
-                                            {tbl.pk && (
-                                                <span className="hidden lg:block text-[10px] px-2 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/15 font-mono whitespace-nowrap">
-                                                    PK: {tbl.pk}
-                                                </span>
-                                            )}
-                                            <Eye className={`w-4 h-4 ${isSelected ? "text-accent-purple" : "text-slate-600"}`} />
+                                            <Eye className={`w-4 h-4 ${isSelected ? "text-indigo-600" : "text-slate-400"}`} />
                                         </div>
                                     </button>
                                 );
@@ -401,96 +376,54 @@ export default function DataTablesPage() {
                 );
             })}
 
-            {/* ═══════════════════════════════════════════════════════
-                TABLE VIEWER PANEL
-               ═══════════════════════════════════════════════════════ */}
+            {/* TABLE VIEWER PANEL */}
             {selectedMeta && (
-                <div id="table-viewer" className="glass-card-static p-6 animate-slide-up">
-                    {/* Header */}
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 lg:gap-2 mb-5">
+                <div id="table-viewer" className="saas-card p-6 animate-slide-up space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
-                                <Database className="w-4 h-4 text-accent-purple" />
-                                <h3 className="text-sm lg:text-base font-bold text-slate-900">
-                                    {(() => {
-                                        const Icon = LAYER_META[selectedTable!.layer].icon;
-                                        return <Icon className="w-4 h-4 lg:w-5 lg:h-5 inline-block mr-2 align-text-bottom" style={{ color: LAYER_META[selectedTable!.layer].color }} />;
-                                    })()} {selectedMeta.name}
-                                </h3>
-                                <span className="text-[9px] lg:text-[10px] px-2 py-0.5 rounded-full bg-accent-purple/20 text-accent-purple font-bold uppercase">
+                                <Database className="w-5 h-5 text-indigo-600" />
+                                <h3 className="text-base font-bold text-slate-900">{selectedMeta.name}</h3>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold uppercase">
                                     {LAYER_META[selectedTable!.layer].label}
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-600 font-semibold">{selectedMeta.description}</p>
+                            <p className="text-xs text-slate-600 font-medium">{selectedMeta.description}</p>
                         </div>
-                        <div className="flex items-center gap-2 self-end lg:self-auto">
-                            {/* Download controls */}
-                            <div className="flex rounded-lg overflow-hidden border border-black/10">
+                        <div className="flex items-center gap-2">
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 p-0.5 bg-slate-50">
                                 <button
                                     onClick={() => setDlFormat("csv")}
-                                    className={`px-2 py-1.5 text-[9px] lg:text-[10px] font-semibold uppercase flex items-center gap-1 transition-all ${dlFormat === "csv" ? "bg-accent-teal/20 text-accent-teal" : "text-slate-500 hover:text-slate-800"
-                                        }`}
+                                    className={`px-2.5 py-1 text-xs font-semibold uppercase flex items-center gap-1 rounded transition-all ${
+                                        dlFormat === "csv" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
                                 >
-                                    <FileSpreadsheet className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> CSV
+                                    <FileSpreadsheet className="w-3 h-3" /> CSV
                                 </button>
                                 <button
                                     onClick={() => setDlFormat("json")}
-                                    className={`px-2 py-1.5 text-[9px] lg:text-[10px] font-semibold uppercase flex items-center gap-1 transition-all ${dlFormat === "json" ? "bg-accent-purple/20 text-accent-purple" : "text-slate-500 hover:text-slate-800"
-                                        }`}
+                                    className={`px-2.5 py-1 text-xs font-semibold uppercase flex items-center gap-1 rounded transition-all ${
+                                        dlFormat === "json" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
                                 >
-                                    <FileJson className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> JSON
+                                    <FileJson className="w-3 h-3" /> JSON
                                 </button>
                             </div>
                             <button
                                 onClick={handleDownload}
-                                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[9px] lg:text-[10px] font-semibold uppercase bg-accent-purple/20 text-accent-purple hover:bg-accent-purple/30 transition-all"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all focus-visible:ring-2 focus-visible:ring-indigo-500"
                             >
-                                <Download className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> <span className="hidden sm:inline">Download</span>
+                                <Download className="w-3.5 h-3.5" /> Download
                             </button>
                             <button
                                 onClick={() => setSelectedTable(null)}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-black/[0.04] transition-all"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
 
-                    {/* Schema overview - columns as a compact row */}
-                    <div className="mb-5">
-                        <p className="text-[10px] text-slate-500 uppercase font-semibold mb-2 tracking-wider">Columns ({selectedMeta.columns})</p>
-                        <div className="flex flex-wrap gap-1.5">
-                            {(selectedMeta.column_info || []).map((col: any, i: number) => {
-                                const DIcon = DTYPE_ICONS[col.dtype] || Type;
-                                return (
-                                    <span
-                                        key={i}
-                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono ${col.is_pk
-                                            ? "bg-yellow-500/10 text-yellow-700 border border-yellow-500/20"
-                                            : col.fk_to
-                                                ? "bg-blue-500/10 text-blue-700 border border-blue-500/20"
-                                                : "bg-black/[0.03] text-slate-600 border border-black/[0.05]"
-                                            }`}
-                                    >
-                                        {col.is_pk ? <Key className="w-2.5 h-2.5" /> : col.fk_to ? <Link2 className="w-2.5 h-2.5" /> : <DIcon className="w-2.5 h-2.5 opacity-60" />}
-                                        {col.name}
-                                        <span className="text-slate-500 font-bold">{col.dtype.replace("64", "").replace("32", "")}</span>
-                                        {col.fk_to && (
-                                            <button
-                                                onClick={() => handleNavigate(col.fk_to)}
-                                                className="text-blue-400 hover:text-blue-200"
-                                                title={`Open ${col.fk_to}`}
-                                            >
-                                                <ArrowRight className="w-2.5 h-2.5" />
-                                            </button>
-                                        )}
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Paginated table */}
                     <PaginatedTable
                         layer={selectedTable!.layer}
                         tableName={selectedTable!.name}
@@ -503,8 +436,10 @@ export default function DataTablesPage() {
             {/* Scroll to Top */}
             <button
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-accent-purple/90 text-white flex items-center justify-center shadow-lg shadow-accent-purple/30 transition-all duration-300 hover:bg-accent-purple hover:scale-110 ${showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-                    }`}
+                className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg transition-all duration-300 hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                    showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+                }`}
+                aria-label="Scroll to top"
             >
                 <ArrowUp className="w-4 h-4" />
             </button>

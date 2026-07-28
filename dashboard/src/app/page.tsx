@@ -31,12 +31,19 @@ import {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+        const val = payload[0].value;
+        const formatted =
+            val >= 10000000
+                ? `₹${(val / 10000000).toFixed(2)} Cr`
+                : `₹${(val / 100000).toFixed(2)} Lakhs`;
+
         return (
-            <div className="glass-card-dark p-3 lg:p-4 border border-white/10 shadow-2xl rounded-2xl">
-                <p className="text-[10px] lg:text-sm text-slate-400 mb-1 lg:mb-2 font-bold tracking-tight">{label}</p>
-                <p className="text-sm lg:text-lg font-black text-white">
-                    ₹{(payload[0].value / 10000000).toFixed(2)} Cr
-                </p>
+            <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xl border border-slate-800 text-xs space-y-1">
+                <p className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">{label}</p>
+                <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                    <span className="font-bold text-base text-white">{formatted}</span>
+                </div>
             </div>
         );
     }
@@ -70,7 +77,7 @@ export default function OverviewPage() {
         pct: c.revenue_pct,
         transactions: c.transactions,
         units_sold: c.units_sold,
-        color: c.channel === "POS" ? "#8b5cf6" : "#14b8a6",
+        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
     }));
     const monthlyTrend = (data.monthly_trend || []).map((m: any) => ({
         month: m.year_month,
@@ -79,26 +86,22 @@ export default function OverviewPage() {
     const customers = data.customers || {};
 
     /* ── Build modal row data ── */
-
-    // Revenue breakdown: by channel
     const revenueRows = (data.channel_mix || []).map((c: any) => ({
         label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
         value: fmt(c.revenue),
         subValue: `${fmtNum(c.transactions)} transactions`,
-        color: c.channel === "POS" ? "#8b5cf6" : "#14b8a6",
+        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
         percentage: c.revenue_pct,
     }));
 
-    // Orders breakdown: by channel
     const ordersRows = (data.channel_mix || []).map((c: any) => ({
         label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
         value: fmtNum(c.transactions),
         subValue: `${fmtNum(c.units_sold)} units · ${fmt(c.revenue)} revenue`,
-        color: c.channel === "POS" ? "#8b5cf6" : "#14b8a6",
+        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
         percentage: c.revenue_pct,
     }));
 
-    // Customer breakdown — use data from /api/overview customers object
     const totalCust = customers.total_unique_customers || 0;
     const oneTime = customers.one_time_buyers || 0;
     const repeatBuyers = customers.repeat_buyers || 0;
@@ -109,7 +112,7 @@ export default function OverviewPage() {
             label: "Repeat Buyers",
             value: fmtNum(repeatBuyers),
             subValue: `${repeatPct.toFixed(1)}% repeat rate`,
-            color: "#8b5cf6",
+            color: "#6366f1",
             percentage: repeatPct,
         },
         {
@@ -121,21 +124,19 @@ export default function OverviewPage() {
         },
     ];
 
-    // AOV breakdown: by channel
     const aovRows = (data.channel_mix || []).map((c: any) => ({
         label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
         value: fmt(c.transactions > 0 ? c.revenue / c.transactions : 0),
         subValue: `Based on ${fmtNum(c.transactions)} transactions`,
-        color: c.channel === "POS" ? "#8b5cf6" : "#14b8a6",
+        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
     }));
 
-    // City sales (top 5) for revenue modal extra info
     const citySales = (commercialData?.city_sales || []).slice(0, 5);
     const revenueCityRows = citySales.map((c: any, i: number) => ({
         label: c.city,
         value: fmt(c.revenue),
         subValue: `${fmtNum(c.transactions)} txns · #${i + 1}`,
-        color: ["#8b5cf6", "#3b82f6", "#14b8a6", "#ec4899", "#f59e0b"][i],
+        color: ["#6366f1", "#3b82f6", "#14b8a6", "#ec4899", "#f59e0b"][i],
     }));
 
     return (
@@ -148,14 +149,14 @@ export default function OverviewPage() {
 
             <ExecutiveSummary />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-slide-up">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up">
                 <KpiCard
                     icon={IndianRupee}
                     title="Total Revenue"
                     value={fmt(rev.total_revenue || 0)}
                     change={`${(rev.total_transactions || 0).toLocaleString()} txns`}
                     trend="up"
-                    accentColor="from-accent-purple to-accent-blue"
+                    accentColor="from-indigo-600 to-indigo-700"
                     subtitle="All time"
                     onClick={() => setActiveModal("revenue")}
                 />
@@ -165,7 +166,7 @@ export default function OverviewPage() {
                     value={(rev.total_transactions || 0).toLocaleString()}
                     change={`${(rev.total_units_sold || 0).toLocaleString()} units`}
                     trend="up"
-                    accentColor="from-accent-blue to-accent-teal"
+                    accentColor="from-blue-600 to-indigo-600"
                     subtitle="All time"
                     onClick={() => setActiveModal("orders")}
                 />
@@ -175,7 +176,7 @@ export default function OverviewPage() {
                     value={(customers.total_unique_customers || 0).toLocaleString()}
                     change={`${customers.repeat_rate_pct || 0}% repeat`}
                     trend="up"
-                    accentColor="from-accent-teal to-emerald-400"
+                    accentColor="from-teal-600 to-emerald-600"
                     subtitle="Active buyers"
                     onClick={() => setActiveModal("customers")}
                 />
@@ -185,7 +186,7 @@ export default function OverviewPage() {
                     value={fmt(rev.avg_transaction_value || 0)}
                     change="Per transaction"
                     trend="neutral"
-                    accentColor="from-accent-pink to-accent-orange"
+                    accentColor="from-purple-600 to-pink-600"
                     subtitle="Across all channels"
                     onClick={() => setActiveModal("aov")}
                 />
@@ -207,11 +208,11 @@ export default function OverviewPage() {
                             <AreaChart data={monthlyTrend}>
                                 <defs>
                                     <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                                 <XAxis
                                     dataKey="month"
                                     axisLine={false}
@@ -228,10 +229,10 @@ export default function OverviewPage() {
                                 <Area
                                     type="monotone"
                                     dataKey="revenue"
-                                    stroke="#8b5cf6"
-                                    strokeWidth={3}
+                                    stroke="#6366f1"
+                                    strokeWidth={2.5}
                                     fill="url(#revenueGrad)"
-                                    activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }}
+                                    activeDot={{ r: 6, strokeWidth: 0, fill: "#4f46e5" }}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
@@ -262,20 +263,20 @@ export default function OverviewPage() {
                                         if (active && payload && payload.length) {
                                             const d = payload[0].payload;
                                             return (
-                                                <div className="glass-card-dark p-4 border border-white/10 shadow-2xl rounded-2xl" style={{ zIndex: 9999 }}>
-                                                    <p className="text-xs font-black text-accent-purple uppercase tracking-wider mb-2">{d.name}</p>
-                                                    <div className="space-y-1.5">
+                                                <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xl border border-slate-800 text-xs space-y-1.5" style={{ zIndex: 9999 }}>
+                                                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">{d.name}</p>
+                                                    <div className="space-y-1">
                                                         <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-xs font-medium text-slate-300">Revenue</span>
-                                                            <span className="text-sm font-black text-white">{fmt(d.value)}</span>
+                                                            <span className="text-slate-400 font-medium">Revenue</span>
+                                                            <span className="font-bold text-white">{fmt(d.value)}</span>
                                                         </div>
                                                         <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-xs font-medium text-slate-300">Share</span>
-                                                            <span className="text-sm font-black text-white">{d.pct}%</span>
+                                                            <span className="text-slate-400 font-medium">Share</span>
+                                                            <span className="font-bold text-white">{d.pct}%</span>
                                                         </div>
                                                         <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-xs font-medium text-slate-300">Transactions</span>
-                                                            <span className="text-sm font-black text-white">{fmtNum(d.transactions)}</span>
+                                                            <span className="text-slate-400 font-medium">Transactions</span>
+                                                            <span className="font-bold text-white">{fmtNum(d.transactions)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -293,7 +294,7 @@ export default function OverviewPage() {
                                         className="w-2.5 h-2.5 rounded-full"
                                         style={{ background: item.color }}
                                     />
-                                    <span className="text-xs text-slate-400">{item.name}</span>
+                                    <span className="text-xs text-slate-600 font-medium">{item.name}</span>
                                 </div>
                             ))}
                         </div>
@@ -302,13 +303,12 @@ export default function OverviewPage() {
             </div>
 
             {/* ── Drill-Down Modals ── */}
-
             <DetailsModal
                 open={activeModal === "revenue"}
                 onClose={() => setActiveModal(null)}
                 title="Revenue Breakdown"
                 icon={IndianRupee}
-                accentColor="from-accent-purple to-accent-blue"
+                accentColor="from-indigo-600 to-indigo-700"
                 rows={[...revenueRows, ...revenueCityRows]}
                 footer="Revenue split by channel and top 5 cities"
             />
@@ -318,7 +318,7 @@ export default function OverviewPage() {
                 onClose={() => setActiveModal(null)}
                 title="Orders Breakdown"
                 icon={ShoppingBag}
-                accentColor="from-accent-blue to-accent-teal"
+                accentColor="from-blue-600 to-indigo-600"
                 rows={ordersRows}
                 footer="Orders split by POS (in-store) vs Web (online)"
             />
@@ -328,7 +328,7 @@ export default function OverviewPage() {
                 onClose={() => setActiveModal(null)}
                 title="Customer Breakdown"
                 icon={Users}
-                accentColor="from-accent-teal to-emerald-400"
+                accentColor="from-teal-600 to-emerald-600"
                 rows={customerRows}
                 footer="New vs returning customers across all channels"
             />
@@ -338,7 +338,7 @@ export default function OverviewPage() {
                 onClose={() => setActiveModal(null)}
                 title="Avg Order Value by Channel"
                 icon={CreditCard}
-                accentColor="from-accent-pink to-accent-orange"
+                accentColor="from-purple-600 to-pink-600"
                 rows={aovRows}
                 footer="Average transaction value per channel"
             />
