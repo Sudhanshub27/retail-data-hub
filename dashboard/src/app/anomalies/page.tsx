@@ -1,323 +1,285 @@
 "use client";
 
-import { useState } from "react";
-import { useApi } from "@/hooks/useApi";
-import { PageSkeleton } from "@/components/Skeleton";
+import React, { useState } from "react";
 import {
-    AlertTriangle,
-    Activity,
-    MapPin,
-    Package,
-    TrendingUp,
-    Search,
-    Filter,
+  AlertTriangle,
+  DollarSign,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    AreaChart,
-    Area,
-    Cell,
-    PieChart,
-    Pie,
-} from "recharts";
+import { useStore } from "@/context/StoreContext";
 
-/* ── Helpers ── */
-
-function fmtNum(n: number | undefined | null): string {
-    return (n ?? 0).toLocaleString("en-IN");
+interface AnomalyItem {
+  id: string;
+  title: string;
+  category: string;
+  severity: "Critical" | "Warning" | "Info";
+  revImpact: number;
+  timestamp: string;
+  store: string;
+  rootCause: string;
+  mlConfidence: string;
+  status: "Active" | "Investigating" | "Resolved";
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-    Critical: "#ef4444",
-    High: "#f97316",
-    Medium: "#eab308",
-    Low: "#22c55e",
-};
-
-const TYPE_COLORS: Record<string, string> = {
-    revenue_spike: "#8b5cf6",
-    revenue_drop: "#3b82f6",
-    quantity_outlier: "#f59e0b",
-    price_anomaly: "#ec4899",
-    multivariate: "#14b8a6",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-    revenue_spike: "Revenue Spike",
-    revenue_drop: "Revenue Drop",
-    quantity_outlier: "Quantity Outlier",
-    price_anomaly: "Price Anomaly",
-    multivariate: "ML Detected",
-};
-
-/* ── Tooltip ── */
-
-const GlassTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="glass-card-dark p-4 border border-white/10 max-w-xs shadow-2xl rounded-2xl">
-                <p className="text-sm text-slate-400 mb-2 font-bold tracking-tight">{label}</p>
-                <div className="space-y-1.5">
-                    {payload.map((p: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: p.color || p.stroke }} />
-                                <span className="text-xs font-medium text-slate-300">{p.name}</span>
-                            </div>
-                            <span className="text-sm font-black text-white">{fmtNum(p.value)}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
-
-/* ── Main Page ── */
+const ANOMALY_ITEMS: AnomalyItem[] = [
+  {
+    id: "ANOM-4019",
+    title: "POS-Refund Spike in Store #104 Chicago",
+    category: "Payment POS",
+    severity: "Critical",
+    revImpact: 18450,
+    timestamp: "12 mins ago",
+    store: "Store #104 - Chicago",
+    rootCause: "Duplicate refund requests triggered via POS terminal #4 firmware issue",
+    mlConfidence: "98.2%",
+    status: "Active",
+  },
+  {
+    id: "ANOM-4020",
+    title: "Unusual Checkout Drop-off Rate (E-Commerce)",
+    category: "Checkout Funnel",
+    severity: "Critical",
+    revImpact: 14200,
+    timestamp: "28 mins ago",
+    store: "E-Commerce Global Store",
+    rootCause: "Payment gateway timeout for European credit cards (Stripe 504 error)",
+    mlConfidence: "94.7%",
+    status: "Active",
+  },
+  {
+    id: "ANOM-4021",
+    title: "SKU-8842 Inventory Count Mismatch",
+    category: "Inventory Sync",
+    severity: "Warning",
+    revImpact: 6800,
+    timestamp: "1 hour ago",
+    store: "Flagship Store - NYC",
+    rootCause: "Unsynced physical stock take vs catalog ledger",
+    mlConfidence: "89.1%",
+    status: "Investigating",
+  },
+  {
+    id: "ANOM-4022",
+    title: "Negative Unit Price Transaction Detected",
+    category: "Data Ingestion",
+    severity: "Warning",
+    revImpact: 3100,
+    timestamp: "2 hours ago",
+    store: "E-Commerce Global Store",
+    rootCause: "Invalid promo code combination resulting in -$4.50 cart total",
+    mlConfidence: "99.4%",
+    status: "Active",
+  },
+];
 
 export default function AnomaliesPage() {
-    const { data, loading } = useApi<any>("/api/anomalies");
-    const [severityFilter, setSeverityFilter] = useState<string>("All");
+  const { selectedStore } = useStore();
+  const mult = selectedStore.multiplier;
 
-    if (loading || !data || data.error) return <PageSkeleton />;
+  const [sensitivity, setSensitivity] = useState<"Strict" | "Balanced" | "Relaxed">("Balanced");
+  const [expandedId, setExpandedId] = useState<string | null>("ANOM-4019");
 
-    const summary = data.summary || {};
-    const severityDist = summary.severity_distribution || {};
-    const byType = summary.by_type || [];
-    const timeline = data.timeline || [];
-    const byCity = (data.by_city || []).slice(0, 10);
-    const topAnomalies = data.top_anomalies || [];
+  const activeCount = Math.round(3 * mult);
+  const totalRevImpact = Math.round(42550 * mult);
 
-    // Severity pie data
-    const severityPieData = Object.entries(severityDist).map(([level, count]) => ({
-        name: level,
-        value: count as number,
-        color: SEVERITY_COLORS[level] || "#64748b",
-    }));
-
-    // Type bar data
-    const typeBarData = byType.map((t: any) => ({
-        name: TYPE_LABELS[t.type] || t.type,
-        count: t.count,
-        color: TYPE_COLORS[t.type] || "#64748b",
-    }));
-
-    // Filter anomalies
-    const filteredAnomalies = severityFilter === "All"
-        ? topAnomalies
-        : topAnomalies.filter((a: any) => a.severity === severityFilter);
-
-    return (
-        <div className="space-y-6">
-            <PageHeader
-                icon={AlertTriangle}
-                title="Anomaly Detection"
-                subtitle="Statistical & ML-powered anomaly detection across revenue, quantity, pricing, and multivariate signals"
-            />
-
-            {/* ── KPI Row ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-slide-up">
-                <KpiCard
-                    icon={AlertTriangle}
-                    title="Total Anomalies"
-                    value={fmtNum(summary.total_anomalies)}
-                    change={`${severityDist.Critical || 0} critical`}
-                    trend="up"
-                    accentColor="from-red-500 to-orange-500"
-                    subtitle="Detected across all methods"
-                />
-                <KpiCard
-                    icon={Activity}
-                    title="Critical Alerts"
-                    value={fmtNum(severityDist.Critical || 0)}
-                    change={`${severityDist.High || 0} high severity`}
-                    trend="up"
-                    accentColor="from-red-600 to-red-400"
-                    subtitle="Require immediate review"
-                />
-                <KpiCard
-                    icon={MapPin}
-                    title="Most Affected City"
-                    value={summary.most_affected_city || "N/A"}
-                    change="Highest anomaly count"
-                    trend="up"
-                    accentColor="from-accent-purple to-accent-blue"
-                    subtitle="Geographic hotspot"
-                />
-                <KpiCard
-                    icon={Package}
-                    title="Most Affected Product"
-                    value={(summary.most_affected_product || "N/A").substring(0, 20)}
-                    change="Highest anomaly count"
-                    trend="up"
-                    accentColor="from-accent-blue to-accent-teal"
-                    subtitle="Product hotspot"
-                />
-            </div>
-
-            {/* ── Row 2: Severity Pie + Detection Type Bar ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 animate-slide-up" style={{ animationDelay: "0.05s" }}>
-                <ChartCard title="Severity Distribution" subtitle="Breakdown of anomalies by risk level">
-                    <div className="h-64 lg:h-72 flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={severityPieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={50}
-                                    outerRadius={80}
-                                    paddingAngle={4}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                    labelLine={false}
-                                >
-                                    {severityPieData.map((entry, index) => (
-                                        <Cell key={index} fill={entry.color} fillOpacity={0.85} />
-                                    ))}
-                                </Pie>
-                                <Tooltip content={<GlassTooltip />} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-                <ChartCard title="Detection Methods" subtitle="Anomalies found by each detection technique">
-                    <div className="h-64 lg:h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={typeBarData} layout="vertical" margin={{ left: 10 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
-                                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10 }} />
-                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} width={90} />
-                                <Tooltip content={<GlassTooltip />} cursor={{ fill: "rgba(0,0,0,0.02)" }} />
-                                <Bar dataKey="count" name="Anomalies" radius={[0, 8, 8, 0]} barSize={22}>
-                                    {typeBarData.map((entry: any, index: number) => (
-                                        <Cell key={index} fill={entry.color} fillOpacity={0.8} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-            </div>
-
-            {/* ── Row 3: Timeline ── */}
-            <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
-                <ChartCard title="Anomaly Timeline" subtitle="Daily distribution of detected anomalies">
-                    <div className="h-56 lg:h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={timeline}>
-                                <defs>
-                                    <linearGradient id="anomalyGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9 }} interval={Math.max(0, Math.floor(timeline.length / 12))} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10 }} />
-                                <Tooltip content={<GlassTooltip />} />
-                                <Area type="monotone" dataKey="count" name="Anomalies" stroke="#ef4444" strokeWidth={2} fill="url(#anomalyGrad)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-            </div>
-
-            {/* ── Row 4: City breakdown ── */}
-            <div className="animate-slide-up" style={{ animationDelay: "0.15s" }}>
-                <ChartCard title="Anomalies by City" subtitle="Geographic distribution of detected anomalies">
-                    <div className="h-56 lg:h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={byCity}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                                <XAxis dataKey="city" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10 }} />
-                                <Tooltip content={<GlassTooltip />} cursor={{ fill: "rgba(0,0,0,0.02)" }} />
-                                <Bar dataKey="count" name="Anomalies" radius={[6, 6, 0, 0]} barSize={24} fill="#8b5cf6" fillOpacity={0.75} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-            </div>
-
-            {/* ── Row 5: Flagged Transactions Table ── */}
-            <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
-                <ChartCard
-                    title="Top Flagged Transactions"
-                    subtitle="Most severe anomalies detected across all methods"
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Anomaly & Outlier Detection"
+        subtitle={`Outlier monitoring, revenue impact assessment, and diagnostics for ${selectedStore.name}`}
+        icon={AlertTriangle}
+        action={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 text-xs font-semibold shadow-xs">
+              <span className="text-slate-500 px-2 font-mono">Sensitivity:</span>
+              {(["Strict", "Balanced", "Relaxed"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSensitivity(s)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    sensitivity === s
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                    {/* Filter bar */}
-                    <div className="flex items-center gap-2 mb-4 flex-wrap">
-                        <Filter className="w-4 h-4 text-slate-400" />
-                        {["All", "Critical", "High", "Medium", "Low"].map((sev) => (
-                            <button
-                                key={sev}
-                                onClick={() => setSeverityFilter(sev)}
-                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${severityFilter === sev
-                                        ? "bg-indigo-600 text-white shadow-md"
-                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                    }`}
-                            >
-                                {sev}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                        <table className="w-full text-sm min-w-[700px]">
-                            <thead>
-                                <tr className="border-b border-slate-200">
-                                    <th className="text-left py-2 px-3 text-xs font-bold text-slate-500 uppercase">Severity</th>
-                                    <th className="text-left py-2 px-3 text-xs font-bold text-slate-500 uppercase">Type</th>
-                                    <th className="text-left py-2 px-3 text-xs font-bold text-slate-500 uppercase">Description</th>
-                                    <th className="text-left py-2 px-3 text-xs font-bold text-slate-500 uppercase">Score</th>
-                                    <th className="text-left py-2 px-3 text-xs font-bold text-slate-500 uppercase">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredAnomalies.slice(0, 15).map((a: any, i: number) => (
-                                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                                        <td className="py-2.5 px-3">
-                                            <span
-                                                className="px-2.5 py-1 rounded-full text-xs font-bold text-white"
-                                                style={{ background: SEVERITY_COLORS[a.severity] || "#64748b" }}
-                                            >
-                                                {a.severity}
-                                            </span>
-                                        </td>
-                                        <td className="py-2.5 px-3">
-                                            <span className="text-xs font-medium text-slate-600">
-                                                {TYPE_LABELS[a.type] || a.type}
-                                            </span>
-                                        </td>
-                                        <td className="py-2.5 px-3 max-w-sm">
-                                            <p className="text-xs text-slate-700 truncate">{a.description}</p>
-                                        </td>
-                                        <td className="py-2.5 px-3">
-                                            <span className="text-sm font-bold text-slate-800">{a.score}</span>
-                                        </td>
-                                        <td className="py-2.5 px-3">
-                                            <span className="text-xs text-slate-500">{a.date}</span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </ChartCard>
+                  {s}
+                </button>
+              ))}
             </div>
+          </div>
+        }
+      />
+
+      {/* Anomaly Radar Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Active Anomalies Count"
+          value={activeCount.toString()}
+          change="3 High Severity"
+          trend="down"
+          icon={AlertTriangle}
+          accentColor="rose"
+          subtitle={`Sensitivity Mode: ${sensitivity}`}
+        />
+        <KpiCard
+          title="Total Revenue Impact"
+          value={`$${totalRevImpact.toLocaleString()}`}
+          change="At Risk Revenue"
+          trend="down"
+          icon={DollarSign}
+          accentColor="amber"
+          subtitle="4 Active Outlier Events"
+        />
+        <KpiCard
+          title="Avg ML Detection Latency"
+          value="4.2 sec"
+          change="-1.1s faster"
+          trend="up"
+          icon={Zap}
+          accentColor="cyan"
+          subtitle="Isolation Forest Algo"
+        />
+        <KpiCard
+          title="False Positive Rate"
+          value="1.4%"
+          change="High Precision"
+          trend="up"
+          icon={CheckCircle2}
+          accentColor="emerald"
+          subtitle="Model Confidence > 88%"
+        />
+      </div>
+
+      {/* Severity Breakdown Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div>
+            <div className="text-xs font-bold text-rose-900">🚨 Critical Severity</div>
+            <div className="text-2xl font-extrabold text-slate-900 font-mono mt-1">2 Active</div>
+            <p className="text-[11px] text-slate-500 font-medium">Immediate intervention required</p>
+          </div>
+          <span className="px-3 py-1 bg-rose-100 rounded-full text-rose-800 text-xs font-mono font-bold">
+            SEV-1
+          </span>
         </div>
-    );
+
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div>
+            <div className="text-xs font-bold text-amber-900">⚠️ Warning Severity</div>
+            <div className="text-2xl font-extrabold text-slate-900 font-mono mt-1">2 Active</div>
+            <p className="text-[11px] text-slate-500 font-medium">Investigate within 24 hours</p>
+          </div>
+          <span className="px-3 py-1 bg-amber-100 rounded-full text-amber-800 text-xs font-mono font-bold">
+            SEV-2
+          </span>
+        </div>
+
+        <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div>
+            <div className="text-xs font-bold text-cyan-900">ℹ️ Informational Severity</div>
+            <div className="text-2xl font-extrabold text-slate-900 font-mono mt-1">0 Active</div>
+            <p className="text-[11px] text-slate-500 font-medium">System logged telemetry</p>
+          </div>
+          <span className="px-3 py-1 bg-cyan-100 rounded-full text-cyan-800 text-xs font-mono font-bold">
+            SEV-3
+          </span>
+        </div>
+      </div>
+
+      {/* Expandable Root-Cause Diagnostic List */}
+      <ChartCard
+        title="Active Outlier Diagnostic Radar"
+        subtitle="Click any anomaly event to expand root-cause analysis and resolution steps"
+      >
+        <div className="space-y-3 my-1">
+          {ANOMALY_ITEMS.map((item) => {
+            const isExpanded = expandedId === item.id;
+            return (
+              <div
+                key={item.id}
+                className="border border-slate-200 rounded-xl bg-white overflow-hidden transition-colors shadow-xs"
+              >
+                <div
+                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-lg ${
+                        item.severity === "Critical"
+                          ? "bg-rose-50 text-rose-600 border border-rose-100"
+                          : "bg-amber-50 text-amber-600 border border-amber-100"
+                      }`}
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-indigo-600 font-bold">{item.id}</span>
+                        <span className="font-bold text-slate-900 text-xs">{item.title}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        Location: <span className="text-slate-800 font-semibold">{item.store}</span> • Time: {item.timestamp}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-xs font-mono font-extrabold text-rose-700">
+                        -${Math.round(item.revImpact * mult).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">Revenue Impact</div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                        item.severity === "Critical"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {item.severity}
+                    </span>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                  </div>
+                </div>
+
+                {/* Expandable Root-Cause Diagnostic Drawer */}
+                {isExpanded && (
+                  <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3 text-xs animate-slide-down">
+                    <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span className="font-bold text-slate-900">Root Cause Diagnostic:</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                        Model Confidence: {item.mlConfidence}
+                      </span>
+                    </div>
+                    <p className="text-slate-700 font-sans leading-relaxed">{item.rootCause}</p>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                      <div className="text-[11px] text-slate-500">
+                        Recommended Action: Reset POS Terminal Gateway #4 & Flush Refund Cache
+                      </div>
+                      <button className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors">
+                        Execute Auto-Remediation
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ChartCard>
+    </div>
+  );
 }

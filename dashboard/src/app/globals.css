@@ -3,101 +3,91 @@
 @tailwind utilities;
 
 @layer base {
-    body {
-        @apply text-slate-900 antialiased bg-slate-100/70;
-    }
+  :root {
+    color-scheme: light;
+  }
 
-    button, input, select, textarea {
-        @apply rounded-xl;
-    }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500/20 selection:text-indigo-800 font-sans min-h-screen overflow-x-hidden;
+  }
 
-    /* Universal Accessible Focus Rings */
-    button:focus-visible, 
-    a:focus-visible, 
-    input:focus-visible, 
-    select:focus-visible, 
-    [role="button"]:focus-visible {
-        @apply outline-none ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 transition-all;
-    }
+  button, input, select, textarea {
+    @apply font-sans;
+  }
+
+  /* Universal Accessible Focus Rings */
+  button:focus-visible, 
+  a:focus-visible, 
+  input:focus-visible, 
+  select:focus-visible, 
+  [role="button"]:focus-visible {
+    @apply outline-none ring-2 ring-indigo-600 ring-offset-2 ring-offset-white transition-all;
+  }
 }
 
-/* Custom Scrollbar */
+/* Custom Sleek Light Scrollbar */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-    @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 
-/* Vercel-style Elevation & Cards */
-.saas-card {
-    @apply bg-white border border-slate-200/80 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200;
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-.saas-card-interactive {
-    @apply saas-card hover:border-slate-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer;
+/* Executive Light Card Utilities */
+.slate-card {
+  @apply bg-white border border-slate-200/80 rounded-2xl shadow-xs transition-all duration-200;
 }
 
-.saas-card-dark {
-    @apply bg-slate-900 border border-slate-800 rounded-2xl shadow-xl text-white;
+.slate-card-interactive {
+  @apply slate-card hover:border-slate-300 hover:shadow-md transition-all duration-200 cursor-pointer;
 }
 
-/* Glass Utilities (Backward Compatibility) */
-.glass-card {
-    @apply saas-card-interactive;
-}
-
-.glass-card-static {
-    @apply saas-card;
-}
-
-.glass-card-dark {
-    @apply saas-card-dark;
-}
-
-/* Shimmer Loading Animation */
-@keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
-
-.shimmer-effect {
-    position: relative;
-    overflow: hidden;
-}
-
-.shimmer-effect::after {
-    position: absolute;
-    top: 0; right: 0; bottom: 0; left: 0;
-    transform: translateX(-100%);
-    background-image: linear-gradient(
-        90deg,
-        rgba(255, 255, 255, 0) 0,
-        rgba(255, 255, 255, 0.4) 20%,
-        rgba(255, 255, 255, 0.6) 60%,
-        rgba(255, 255, 255, 0)
-    );
-    animation: shimmer 2s infinite;
-    content: '';
-}
-
-/* Recharts Overrides */
+/* Recharts Overrides for Light Vibrant Theme */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-    stroke: rgba(0, 0, 0, 0.05) !important;
+  stroke: #e2e8f0 !important;
 }
 
 .recharts-tooltip-cursor {
-    fill: rgba(0, 0, 0, 0.03) !important;
+  fill: rgba(99, 102, 241, 0.05) !important;
 }
 
-/* Text Selection */
-::selection {
-    @apply bg-indigo-500/20 text-indigo-700;
+.recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  border-radius: 0.75rem !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Vibrant Glow effects */
+.glow-emerald {
+  box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.2);
+}
+
+.glow-indigo {
+  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.25);
+}
+
+.glow-rose {
+  box-shadow: 0 4px 14px 0 rgba(244, 63, 94, 0.2);
+}
+
+.glow-cyan {
+  box-shadow: 0 4px 14px 0 rgba(6, 182, 212, 0.2);
+}
+
+.glow-amber {
+  box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.2);
 }

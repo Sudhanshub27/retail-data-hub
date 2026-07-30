@@ -1,606 +1,221 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useApi } from "@/hooks/useApi";
-import { PageSkeleton } from "@/components/Skeleton";
+import React, { useState } from "react";
 import {
-    Users,
-    Heart,
-    UserPlus,
-    Star,
-    MapPin,
-    ArrowUp,
-    Crown,
-    TrendingUp,
-    Target,
-    XCircle,
-    ChevronRight,
-    Award,
-    Sparkles,
+  Users,
+  UserCheck,
+  AlertTriangle,
+  UserPlus,
+  Gift,
+  CheckCircle2,
+  TrendingDown,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell,
-    PieChart,
-    Pie,
-    Legend,
-    AreaChart,
-    Area,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
+import { useStore } from "@/context/StoreContext";
 
-/* ── Colors & Config ── */
-
-const segmentColors: Record<string, string> = {
-    Champions: "#8b5cf6",
-    "Loyal Customers": "#3b82f6",
-    "Potential Loyalist": "#14b8a6",
-    "At Risk": "#f97316",
-    "Need Attention": "#eab308",
-    "New Customers": "#06b6d4",
-    Lost: "#6b7280",
-};
-
-const CLV_COLORS: Record<string, string> = {
-    Platinum: "#8b5cf6",
-    Gold: "#f59e0b",
-    Silver: "#94a3b8",
-    Bronze: "#d97706",
-};
-
-const CITY_COLORS = ["#8b5cf6", "#3b82f6", "#14b8a6", "#ec4899", "#f59e0b", "#ef4444", "#06b6d4", "#10b981", "#a855f7", "#6366f1"];
-
-const SECTIONS = [
-    { id: "kpis", label: "Overview", icon: Users },
-    { id: "segments", label: "RFM Segments", icon: Target },
-    { id: "clv", label: "CLV Analysis", icon: Heart },
-    { id: "trends", label: "Trends", icon: TrendingUp },
-    { id: "cities", label: "Geography", icon: MapPin },
+// 3x3 RFM Segments data
+const RFM_SEGMENTS = [
+  { name: "🏆 Champions", count: 1420, percent: "18.5%", color: "border-emerald-200 bg-emerald-50 text-emerald-900", desc: "Bought recently, buy often, spend most" },
+  { name: "💎 Loyal Customers", count: 2150, percent: "28.0%", color: "border-indigo-200 bg-indigo-50 text-indigo-900", desc: "Buy regularly, responsive to promotions" },
+  { name: "⭐ Potential Loyalists", count: 1890, percent: "24.6%", color: "border-cyan-200 bg-cyan-50 text-cyan-900", desc: "Recent buyers with average frequency" },
+  { name: "🌱 New Customers", count: 680, percent: "8.8%", color: "border-teal-200 bg-teal-50 text-teal-900", desc: "Bought recently, low frequency" },
+  { name: "⚠️ At-Risk Customers", count: 820, percent: "10.7%", color: "border-amber-200 bg-amber-50 text-amber-900", desc: "Spent big money, haven't bought recently" },
+  { name: "🚨 High Churn Risk", count: 340, percent: "4.4%", color: "border-rose-200 bg-rose-50 text-rose-900", desc: "High recency gap, falling engagement" },
+  { name: "😴 Hibernating", count: 210, percent: "2.7%", color: "border-slate-200 bg-slate-100 text-slate-800", desc: "Low spend, low frequency, high recency" },
+  { name: "❌ Lost / Churned", count: 170, percent: "2.3%", color: "border-slate-200 bg-slate-100 text-slate-600", desc: "Lowest recency, frequency & monetary" },
 ];
 
-/* ── Helpers ── */
+const LTV_COHORT_DATA = [
+  { month: "Month 1", cohort2025Q1: 100, cohort2025Q2: 100, cohort2025Q3: 100 },
+  { month: "Month 2", cohort2025Q1: 78, cohort2025Q2: 82, cohort2025Q3: 85 },
+  { month: "Month 3", cohort2025Q1: 64, cohort2025Q2: 69, cohort2025Q3: 74 },
+  { month: "Month 4", cohort2025Q1: 58, cohort2025Q2: 63, cohort2025Q3: 68 },
+  { month: "Month 5", cohort2025Q1: 52, cohort2025Q2: 59, cohort2025Q3: 64 },
+  { month: "Month 6", cohort2025Q1: 49, cohort2025Q2: 56, cohort2025Q3: 61 },
+];
 
-function fmt(n: number): string {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-    return `₹${n.toLocaleString("en-IN")}`;
-}
-
-function fmtNum(n: number | undefined | null): string {
-    return (n ?? 0).toLocaleString("en-IN");
-}
-
-/* ── Main Page ── */
-
-type SegmentDrill = string | null;
+const CHURN_LEADERBOARD = [
+  { id: "CUST-9014", name: "High-Volume Wholesale LLC", segment: "At Risk", ltv: 48500, riskScore: 92, lastOrderDays: 45 },
+  { id: "CUST-3821", name: "Apex Retail Distribution", segment: "At Risk", ltv: 32100, riskScore: 88, lastOrderDays: 38 },
+  { id: "CUST-1049", name: "TechGear Direct Shopper", segment: "High Churn Risk", ltv: 18400, riskScore: 84, lastOrderDays: 52 },
+  { id: "CUST-7729", name: "OmniCorp Purchasing", segment: "At Risk", ltv: 15900, riskScore: 79, lastOrderDays: 41 },
+  { id: "CUST-5510", name: "Metro Cafe Chain HQ", segment: "High Churn Risk", ltv: 12400, riskScore: 76, lastOrderDays: 60 },
+];
 
 export default function CustomersPage() {
-    const { data, loading } = useApi<any>("/api/customers");
-    const [activeSection, setActiveSection] = useState("kpis");
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const [activeSeg, setActiveSeg] = useState<SegmentDrill>(null);
-    const [activeCLV, setActiveCLV] = useState<string | null>(null);
+  const { selectedStore } = useStore();
+  const mult = selectedStore.multiplier;
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 400);
-            const scrollY = window.scrollY;
-            for (let i = SECTIONS.length - 1; i >= 0; i--) {
-                const el = document.getElementById(SECTIONS[i].id);
-                if (el && el.offsetTop - 100 <= scrollY) {
-                    setActiveSection(SECTIONS[i].id);
-                    break;
-                }
-            }
-        };
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
+  const handleReengage = (custId: string, actionName: string) => {
+    setActionSuccess(`Triggered "${actionName}" for customer ${custId}`);
+    setTimeout(() => setActionSuccess(null), 3000);
+  };
 
-    if (loading || !data) return <PageSkeleton />;
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Customer Intelligence & RFM Segmentation"
+        subtitle={`Cohort retention analysis, 3x3 RFM matrix grid, and churn mitigation leaderboard for ${selectedStore.name}`}
+        icon={Users}
+      />
 
-    // ── Data extraction ──
-    const summary = data.new_vs_returning?.summary || {};
-    const monthlyNR = (data.new_vs_returning?.monthly_trend || []).map((m: any) => ({
-        month: m.year_month,
-        new: m.new_customers,
-        returning: m.returning_customers,
-        total: (m.new_customers || 0) + (m.returning_customers || 0),
-    }));
-
-    const clvStats = data.clv?.stats || {};
-    const clvSegmentsRaw = data.clv?.segments || {};
-    const clvSegments = typeof clvSegmentsRaw === "object" && !Array.isArray(clvSegmentsRaw)
-        ? Object.entries(clvSegmentsRaw).map(([seg, count]) => ({
-            tier: seg.charAt(0).toUpperCase() + seg.slice(1),
-            count: count as number,
-            color: CLV_COLORS[seg.charAt(0).toUpperCase() + seg.slice(1)] || "#64748b",
-        }))
-        : (clvSegmentsRaw as any[]).map((s: any) => ({
-            tier: s.segment,
-            count: s.count,
-            color: CLV_COLORS[s.segment] || "#64748b",
-        }));
-    const totalCLVCustomers = clvSegments.reduce((s: number, c: any) => s + c.count, 0);
-
-    const rfmSegments = (data.rfm?.segments || []).map((s: any) => ({
-        segment: s.segment,
-        count: s.count,
-        avg_monetary: s.avg_monetary,
-        avg_recency: s.avg_recency,
-        avg_frequency: s.avg_frequency,
-        color: segmentColors[s.segment] || "#64748b",
-    }));
-    const topCustomers = data.rfm?.top_customers || [];
-
-    const customerCities = (data.customer_cities || []).map((c: any, i: number) => ({
-        ...c,
-        color: CITY_COLORS[i % CITY_COLORS.length],
-    }));
-
-    const totalCustomers = summary.total_unique_customers || 0;
-    const champCount = rfmSegments.find((s: any) => s.segment === "Champions")?.count || 0;
-    const champPct = totalCustomers > 0 ? ((champCount / totalCustomers) * 100).toFixed(1) : "0";
-    const atRiskCount = rfmSegments.find((s: any) => s.segment === "At Risk")?.count || 0;
-    const lostCount = rfmSegments.find((s: any) => s.segment === "Lost")?.count || 0;
-
-    const selectedSegData = activeSeg ? rfmSegments.find((s: any) => s.segment === activeSeg) : null;
-
-    // Segment insights
-    const segInsights: Record<string, { desc: string; action: string; icon: any }> = {
-        Champions: { desc: "Bought recently, buy often, spend the most", action: "Reward them. Can be early adopters for new products. Will promote your brand.", icon: Crown },
-        "Loyal Customers": { desc: "Buy on a regular basis. Responsive to promotions.", action: "Upsell higher value products. Ask for reviews. Engage them.", icon: Heart },
-        "Potential Loyalist": { desc: "Recent customers with above-average frequency.", action: "Offer membership / loyalty program. Recommend other products.", icon: Star },
-        "At Risk": { desc: "Spent big money, purchased often but long time ago.", action: "Send personalized reactivation campaigns. Offer renewals. Provide helpful resources.", icon: TrendingUp },
-        "Need Attention": { desc: "Above average recency, frequency & monetary values. May not have bought very recently.", action: "Make limited time offers. Recommend based on past purchases. Reactivate them.", icon: Target },
-        "New Customers": { desc: "Bought most recently, but not frequently.", action: "Provide on-boarding support. Give them early success. Start building a relationship.", icon: UserPlus },
-        Lost: { desc: "Lowest recency, frequency and monetary scores.", action: "Revive interest with reach out campaign. Ignore otherwise.", icon: Users },
-    };
-
-    const Medal = ({ className, style }: any) => (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
-            <circle cx="12" cy="8" r="6" />
-            <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
-        </svg>
-    );
-
-    // CLV Tier insights
-    const clvTierInsights: Record<string, { desc: string; action: string; icon: any }> = {
-        Platinum: {
-            desc: "Highest value customers with long-term loyalty and high spend.",
-            action: "VIP exclusive perks, early access to premium collections, and high-touch support.",
-            icon: Award
-        },
-        Gold: {
-            desc: "High-value customers who spend consistently above average.",
-            action: "Tiered rewards, personalized recommendations, and periodic complimentary benefits.",
-            icon: Star
-        },
-        Silver: {
-            desc: "Regular customers with potential for high lifetime value.",
-            action: "Growth incentives, cross-sell relevant categories, and loyalty program nudges.",
-            icon: Medal
-        },
-        Bronze: {
-            desc: "Occasional buyers or new customers with entry-level spend.",
-            action: "Engagement campaigns, first-order bonuses, and educational content to increase frequency.",
-            icon: Target
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <PageHeader icon={Users} title="Customer Analytics" subtitle="Customer lifetime value, RFM segmentation & retention analysis" />
-
-
-            {/* ── KPI Cards ── */}
-            <div id="kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-slide-up">
-                <KpiCard icon={UserPlus} title="Total Customers" value={fmtNum(totalCustomers)} change={`${summary.repeat_rate_pct || 0}% repeat buyers`} trend="up" accentColor="from-accent-purple to-accent-blue" subtitle="All time unique customers" />
-                <KpiCard icon={Heart} title="Avg CLV" value={fmt(clvStats.avg_clv || 0)} change={`Max: ${fmt(clvStats.max_clv || 0)}`} trend="up" accentColor="from-accent-teal to-emerald-400" subtitle="Customer lifetime value" />
-                <KpiCard icon={Crown} title="Champions" value={`${champPct}%`} change={`${fmtNum(champCount)} customers`} trend="up" accentColor="from-accent-pink to-accent-purple" subtitle="Best RFM segment" />
-                <KpiCard icon={Target} title="At Risk + Lost" value={fmtNum(atRiskCount + lostCount)} change={`${totalCustomers > 0 ? (((atRiskCount + lostCount) / totalCustomers) * 100).toFixed(1) : 0}% of base`} trend="down" accentColor="from-amber-500 to-red-500" subtitle="Need reactivation" />
-            </div>
-
-            {/* ── RFM Segmentation ── */}
-            <div id="segments">
-                <ChartCard title="RFM Segmentation" subtitle="Click any segment to see insights & recommended actions" className="animate-slide-up">
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                        {/* Chart */}
-                        <div className="xl:col-span-2 h-64 lg:h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={rfmSegments} layout="vertical" margin={{ left: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
-                                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#475569", fontSize: 10, fontWeight: 600 }} />
-                                    <YAxis dataKey="segment" type="category" axisLine={false} tickLine={false} tick={{ fill: "#334155", fontSize: 10, fontWeight: 600 }} width={100} />
-                                    <Tooltip
-                                        content={({ active, payload }: any) => {
-                                            if (active && payload && payload.length) {
-                                                const d = payload[0].payload;
-                                                return (
-                                                    <div className="glass-card-dark p-3 ring-1 ring-white/10" style={{ zIndex: 9999 }}>
-                                                        <p className="text-xs font-bold text-white mb-1">{d.segment}</p>
-                                                        <p className="text-xs text-slate-300">{fmtNum(d.count)} customers</p>
-                                                        <p className="text-xs text-slate-300">Avg Spend: {fmt(d.avg_monetary || 0)}</p>
-                                                        <p className="text-xs text-slate-300">Avg Frequency: {d.avg_frequency?.toFixed(1)}</p>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={22} cursor="pointer" onClick={(data: any) => setActiveSeg(activeSeg === data.segment ? null : data.segment)}>
-                                        {rfmSegments.map((entry: any, index: number) => (
-                                            <Cell key={index} fill={entry.color} opacity={activeSeg && activeSeg !== entry.segment ? 0.3 : 1} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* Segment cards */}
-                        <div className="space-y-2 max-h-80 overflow-y-auto p-1 -m-1">
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Segments</p>
-                            {rfmSegments.map((seg: any) => {
-                                const isActive = activeSeg === seg.segment;
-                                const pct = totalCustomers > 0 ? ((seg.count / totalCustomers) * 100).toFixed(1) : "0";
-                                return (
-                                    <button
-                                        key={seg.segment}
-                                        onClick={() => setActiveSeg(isActive ? null : seg.segment)}
-                                        className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-all ${isActive ? "bg-black/[0.06] ring-1" : "hover:bg-black/[0.03]"
-                                            }`}
-                                        style={isActive ? { borderColor: seg.color + "40" } : undefined}
-                                    >
-                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: seg.color }} />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs font-bold text-slate-900">{seg.segment}</span>
-                                                <span className="text-[10px] font-bold text-slate-500">{fmtNum(seg.count)}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.06)" }}>
-                                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: seg.color }} />
-                                                </div>
-                                                <span className="text-[9px] font-bold text-slate-600">{pct}%</span>
-                                            </div>
-                                        </div>
-                                        <ChevronRight className={`w-3 h-3 text-slate-600 transition-transform ${isActive ? "rotate-90" : ""}`} />
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* ── Segment Drill-Down Panel ── */}
-                    {selectedSegData && (
-                        <div className="mt-6 p-5 rounded-xl animate-slide-up" style={{ background: `${selectedSegData.color}08`, border: `1px solid ${selectedSegData.color}20` }}>
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${selectedSegData.color}20` }}>
-                                        {(() => {
-                                            const SegIcon = segInsights[selectedSegData.segment]?.icon || Users;
-                                            return <SegIcon className="w-5 h-5" style={{ color: selectedSegData.color }} />;
-                                        })()}
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-900">{selectedSegData.segment}</h4>
-                                        <p className="text-xs text-slate-600 font-medium">{segInsights[selectedSegData.segment]?.desc || ""}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setActiveSeg(null)} className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-black/[0.06]">
-                                    <XCircle className="w-4 h-4" />
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                                <div className="p-3 rounded-xl text-center" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                                    <p className="text-lg font-bold text-slate-900">{selectedSegData.count?.toLocaleString()}</p>
-                                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Customers</p>
-                                </div>
-                                <div className="p-3 rounded-xl text-center" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                                    <p className="text-lg font-bold text-slate-900">{fmt(selectedSegData.avg_monetary || 0)}</p>
-                                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Avg Spend</p>
-                                </div>
-                                <div className="p-3 rounded-xl text-center" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                                    <p className="text-lg font-bold text-slate-900">{selectedSegData.avg_frequency?.toFixed(1) || "—"}</p>
-                                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Avg Frequency</p>
-                                </div>
-                                <div className="p-3 rounded-xl text-center" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                                    <p className="text-lg font-bold text-slate-900">{selectedSegData.avg_recency?.toFixed(0) || "—"} d</p>
-                                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Avg Recency</p>
-                                </div>
-                            </div>
-
-                            <div className="p-3 rounded-xl flex items-start gap-4" style={{ background: `${selectedSegData.color}10`, border: `1px solid ${selectedSegData.color}20` }}>
-                                <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: selectedSegData.color }} />
-                                <div>
-                                    <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest mb-1.5" style={{ color: selectedSegData.color }}>Recommended Action</p>
-                                    <p className="text-[13px] text-slate-800 font-semibold leading-relaxed">{segInsights[selectedSegData.segment]?.action || ""}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </ChartCard>
-            </div>
-
-            {/* ── CLV Analysis ── */}
-            <div id="clv" className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <ChartCard title="CLV Tier Distribution" subtitle="Click a tier to see details" className="animate-slide-up">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Pie */}
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={clvSegments}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius="45%"
-                                        outerRadius="75%"
-                                        dataKey="count"
-                                        nameKey="tier"
-                                        stroke="rgba(0,0,0,0.3)"
-                                        strokeWidth={1}
-                                        cursor="pointer"
-                                        onClick={(data: any) => setActiveCLV(activeCLV === data.tier ? null : data.tier)}
-                                    >
-                                        {clvSegments.map((entry: any, i: number) => (
-                                            <Cell key={i} fill={entry.color} opacity={activeCLV && activeCLV !== entry.tier ? 0.3 : 1} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        formatter={(value: number, name: string) => [fmtNum(value) + " customers", name]}
-                                        contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "13px", fontWeight: 600, padding: "10px 14px", zIndex: 9999, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
-                                        wrapperStyle={{ zIndex: 9999 }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* Tier cards */}
-                        <div className="space-y-2">
-                            {clvSegments.map((tier: any) => {
-                                const pct = totalCLVCustomers > 0 ? ((tier.count / totalCLVCustomers) * 100).toFixed(1) : "0";
-                                const isActive = activeCLV === tier.tier;
-                                return (
-                                    <button
-                                        key={tier.tier}
-                                        onClick={() => setActiveCLV(isActive ? null : tier.tier)}
-                                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${isActive ? "ring-1 bg-black/[0.04]" : "hover:bg-black/[0.03]"
-                                            }`}
-                                        style={isActive ? { borderColor: tier.color + "40" } : undefined}
-                                    >
-                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${tier.color}15` }}>
-                                            <Award className="w-4 h-4" style={{ color: tier.color }} />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm font-semibold text-slate-800">{tier.tier}</span>
-                                                <span className="text-xs font-bold" style={{ color: tier.color }}>{pct}%</span>
-                                            </div>
-                                            <p className="text-[10px] text-slate-500">{fmtNum(tier.count)} customers</p>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* ── CLV Tier Drill-Down Panel ── */}
-                    {activeCLV && (
-                        <div className="mt-6 p-5 rounded-2xl animate-slide-up" style={{ background: `${CLV_COLORS[activeCLV]}08`, border: `1px solid ${CLV_COLORS[activeCLV]}20` }}>
-                            <div className="flex items-start justify-between mb-5">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${CLV_COLORS[activeCLV]}20` }}>
-                                        {(() => {
-                                            const TierIcon = clvTierInsights[activeCLV]?.icon || Award;
-                                            return <TierIcon className="w-6 h-6" style={{ color: CLV_COLORS[activeCLV] }} />;
-                                        })()}
-                                    </div>
-                                    <div>
-                                        <h4 className="text-base font-black text-slate-900 leading-none mb-1">{activeCLV} Tier</h4>
-                                        <p className="text-sm text-slate-600 font-medium">{clvTierInsights[activeCLV]?.desc || ""}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setActiveCLV(null)} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-black/[0.06] transition-all">
-                                    <XCircle className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="p-4 rounded-2xl flex items-start gap-4" style={{ background: `${CLV_COLORS[activeCLV]}10`, border: `1px solid ${CLV_COLORS[activeCLV]}25` }}>
-                                <Sparkles className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: CLV_COLORS[activeCLV] }} />
-                                <div>
-                                    <p className="text-[11px] text-slate-700 uppercase font-black tracking-[0.1em] mb-2" style={{ color: CLV_COLORS[activeCLV] }}>Strategic Recommendation</p>
-                                    <p className="text-[14px] text-slate-800 font-bold leading-relaxed">{clvTierInsights[activeCLV]?.action || ""}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </ChartCard>
-
-                <ChartCard title="CLV Stats" subtitle="Key lifetime value metrics" className="animate-slide-up">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {[
-                            { label: "Average CLV", value: fmt(clvStats.avg_clv || 0), color: "#8b5cf6" },
-                            { label: "Median CLV", value: fmt(clvStats.median_clv || 0), color: "#3b82f6" },
-                            { label: "Max CLV", value: fmt(clvStats.max_clv || 0), color: "#10b981" },
-                            { label: "25th Percentile", value: fmt(clvStats.p25 || 0), color: "#f59e0b" },
-                            { label: "75th Percentile", value: fmt(clvStats.p75 || 0), color: "#ec4899" },
-                            { label: "Repeat Rate", value: `${summary.repeat_rate_pct || 0}%`, color: "#14b8a6" },
-                        ].map(({ label, value, color }) => (
-                            <div key={label} className="p-4 rounded-xl text-center" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
-                                <p className="text-lg font-bold text-slate-900">{value}</p>
-                                <p className="text-[10px] text-slate-700 font-bold uppercase tracking-wider">{label}</p>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Top customers table */}
-                    {topCustomers.length > 0 && (
-                        <div className="mt-4">
-                            <p className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-2">Top Customers</p>
-                            <div className="rounded-xl overflow-x-auto border border-black/[0.06]">
-                                <table className="w-full min-w-[400px]">
-                                    <thead>
-                                        <tr style={{ background: "rgba(139,92,246,0.06)" }}>
-                                            <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">#</th>
-                                            <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Customer</th>
-                                            <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Spend</th>
-                                            <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Orders</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {topCustomers.slice(0, 5).map((c: any, i: number) => (
-                                            <tr key={i} className="border-t border-black/[0.04] hover:bg-black/[0.02] transition-colors">
-                                                <td className="px-3 py-2 text-xs text-slate-600 font-mono">{i + 1}</td>
-                                                <td className="px-3 py-2 text-xs font-semibold text-slate-800">{c.customer_id}</td>
-                                                <td className="px-3 py-2 text-xs text-emerald-400 text-right font-mono">{fmt(c.monetary || c.total_spend || 0)}</td>
-                                                <td className="px-3 py-2 text-xs text-slate-400 text-right font-mono">{c.frequency || c.orders || "—"}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </ChartCard>
-            </div>
-
-            {/* ── New vs Returning Trend ── */}
-            <div id="trends" className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <ChartCard title="Trend — Area View" subtitle="Stacked area showing growth over time" className="animate-slide-up">
-                    <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={monthlyNR}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
-                                <Tooltip
-                                    contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
-                                    wrapperStyle={{ zIndex: 9999 }}
-                                />
-                                <defs>
-                                    <linearGradient id="newGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.02} />
-                                    </linearGradient>
-                                    <linearGradient id="retGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
-                                    </linearGradient>
-                                </defs>
-                                <Area type="monotone" dataKey="returning" name="Returning" stackId="1" stroke="#8b5cf6" fill="url(#retGrad)" strokeWidth={2} />
-                                <Area type="monotone" dataKey="new" name="New" stackId="1" stroke="#14b8a6" fill="url(#newGrad)" strokeWidth={2} />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="flex gap-6 mt-3 justify-center">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-accent-purple" />
-                            <span className="text-xs text-slate-400">Returning ({fmtNum(summary.repeat_buyers || 0)})</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-accent-teal" />
-                            <span className="text-xs text-slate-400">New ({fmtNum(summary.one_time_buyers || 0)})</span>
-                        </div>
-                    </div>
-                </ChartCard>
-
-                <ChartCard title="Breakdown — Bar View" subtitle="Monthly new vs returning side-by-side" className="animate-slide-up">
-                    <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyNR}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
-                                <Tooltip contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }} wrapperStyle={{ zIndex: 9999 }} />
-                                <Bar dataKey="returning" name="Returning" stackId="a" fill="#8b5cf6" radius={[0, 0, 0, 0]} barSize={20} />
-                                <Bar dataKey="new" name="New" stackId="a" fill="#14b8a6" radius={[6, 6, 0, 0]} barSize={20} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="flex gap-6 mt-3 justify-center">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-accent-purple" />
-                            <span className="text-xs text-slate-400">Returning</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-accent-teal" />
-                            <span className="text-xs text-slate-400">New</span>
-                        </div>
-                    </div>
-                </ChartCard>
-            </div>
-
-            {/* ── Customer Geography ── */}
-            {customerCities.length > 0 && (
-                <div id="cities">
-                    <ChartCard title="Customers by City" subtitle="Top cities by customer count and total spend" className="animate-slide-up">
-                        <div className="rounded-xl overflow-x-auto border border-black/[0.06]">
-                            <table className="w-full min-w-[600px]">
-                                <thead>
-                                    <tr style={{ background: "rgba(139,92,246,0.06)" }}>
-                                        <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider w-8">#</th>
-                                        <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">City</th>
-                                        <th className="text-right px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">Customers</th>
-                                        <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">Share</th>
-                                        <th className="text-right px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total Spend</th>
-                                        <th className="text-right px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">Avg Transaction</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {customerCities.map((city: any, i: number) => {
-                                        const share = totalCustomers > 0 ? ((city.customers / totalCustomers) * 100).toFixed(1) : "0";
-                                        return (
-                                            <tr key={i} className="border-t border-black/[0.04] hover:bg-black/[0.02] transition-colors">
-                                                <td className="px-4 py-3 text-xs text-slate-600 font-mono">{i + 1}</td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <MapPin className="w-3.5 h-3.5" style={{ color: city.color }} />
-                                                        <div>
-                                                            <span className="text-sm font-semibold text-slate-800">{city.city}</span>
-                                                            {city.state && <span className="text-[10px] text-slate-600 font-medium ml-1.5">{city.state}</span>}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-slate-800 text-right font-mono font-semibold">{fmtNum(city.customers)}</td>
-                                                <td className="px-4 py-3 w-32">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.08)" }}>
-                                                            <div className="h-full rounded-full" style={{ width: `${share}%`, background: city.color }} />
-                                                        </div>
-                                                        <span className="text-[10px] text-slate-600 font-bold w-10 text-right">{share}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-emerald-500 text-right font-mono font-bold">{fmt(city.total_spend || 0)}</td>
-                                                <td className="px-4 py-3 text-xs text-slate-600 text-right font-mono font-bold">{fmt(city.avg_transaction || 0)}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </ChartCard>
-                </div>
-            )}
-
-            {/* ── Scroll to Top ── */}
-            <button
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-accent-purple/90 text-white flex items-center justify-center shadow-lg shadow-accent-purple/30 transition-all duration-300 hover:bg-accent-purple hover:scale-110 ${showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-                    }`}
-            >
-                <ArrowUp className="w-4 h-4" />
-            </button>
+      {actionSuccess && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-emerald-800 animate-slide-down">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600" /> {actionSuccess}
         </div>
-    );
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Total Active Customers"
+          value={Math.round(7680 * mult).toLocaleString()}
+          change="+12.4% YoY"
+          trend="up"
+          icon={Users}
+          accentColor="indigo"
+          subtitle="90-Day Active Window"
+        />
+        <KpiCard
+          title="Avg Customer LTV"
+          value={`$${Math.round(1450 * (0.9 + mult * 0.1)).toLocaleString()}`}
+          change="+6.8% expansion"
+          trend="up"
+          icon={UserCheck}
+          accentColor="emerald"
+          subtitle="12-Month Trailing LTV"
+        />
+        <KpiCard
+          title="Avg Churn Rate"
+          value="4.2%"
+          change="-0.8% reduction"
+          trend="up"
+          icon={TrendingDown}
+          accentColor="cyan"
+          subtitle="Target < 5.0%"
+        />
+        <KpiCard
+          title="High Risk Customers"
+          value={Math.round(340 * mult).toString()}
+          change="Requires Immediate Action"
+          trend="down"
+          icon={AlertTriangle}
+          accentColor="rose"
+          subtitle="Churn Risk Score > 75%"
+        />
+      </div>
+
+      {/* 3x3 RFM Matrix Grid */}
+      <ChartCard
+        title="RFM Customer Segmentation Matrix"
+        subtitle="Segmented by Recency, Frequency, and Monetary scoring algorithms"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 my-2">
+          {RFM_SEGMENTS.map((seg, idx) => (
+            <div
+              key={idx}
+              className={`p-4 border rounded-2xl transition-all duration-200 hover:shadow-md cursor-pointer ${seg.color}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold">{seg.name}</span>
+                <span className="text-[10px] font-mono font-extrabold bg-white/80 px-2 py-0.5 rounded border border-slate-200">
+                  {seg.percent}
+                </span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono mt-2">
+                {Math.round(seg.count * mult).toLocaleString()}
+              </div>
+              <p className="text-[11px] opacity-80 mt-1 line-clamp-2">{seg.desc}</p>
+            </div>
+          ))}
+        </div>
+      </ChartCard>
+
+      {/* Grid: Cohort Retention Curve & Churn Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LTV Cohort Retention Curve */}
+        <ChartCard
+          title="Customer Cohort Retention Curve"
+          subtitle="Percentage of active purchasing customers retained month-over-month"
+        >
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={LTV_COHORT_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} />
+                <YAxis stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
+                <Tooltip formatter={(val: number) => [`${val}%`, ""]} contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }} />
+                <Legend />
+                <Line type="monotone" dataKey="cohort2025Q3" name="2025 Q3 Cohort" stroke="#059669" strokeWidth={3} dot={{ fill: "#059669" }} />
+                <Line type="monotone" dataKey="cohort2025Q2" name="2025 Q2 Cohort" stroke="#4f46e5" strokeWidth={2} dot={{ fill: "#4f46e5" }} />
+                <Line type="monotone" dataKey="cohort2025Q1" name="2025 Q1 Cohort" stroke="#0891b2" strokeWidth={2} dot={{ fill: "#0891b2" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+
+        {/* Churn Risk Leaderboard with Action Buttons */}
+        <ChartCard
+          title="High Churn Risk Leaderboard (>75% Risk)"
+          subtitle="Intervention suggestions for high-value accounts"
+          badge="Action Required"
+        >
+          <div className="space-y-3 overflow-y-auto max-h-80 pr-1">
+            {CHURN_LEADERBOARD.map((cust) => (
+              <div
+                key={cust.id}
+                className="p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900">{cust.name}</span>
+                    <span className="font-mono text-[10px] text-slate-500">({cust.id})</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    LTV: <span className="text-emerald-700 font-bold">${Math.round(cust.ltv * mult).toLocaleString()}</span> • Last Order:{" "}
+                    <span className="text-amber-700 font-bold">{cust.lastOrderDays} days ago</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    Risk {cust.riskScore}%
+                  </span>
+
+                  {/* Inline Re-engagement Action Buttons */}
+                  <button
+                    onClick={() => handleReengage(cust.id, "Send 15% VIP Discount")}
+                    className="p-1.5 bg-white border border-slate-200 hover:bg-indigo-600 text-slate-600 hover:text-white rounded-lg transition-colors shadow-xs"
+                    title="Send 15% VIP Discount Voucher"
+                  >
+                    <Gift className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleReengage(cust.id, "Assign VIP Account Mgr")}
+                    className="p-1.5 bg-white border border-slate-200 hover:bg-cyan-600 text-slate-600 hover:text-white rounded-lg transition-colors shadow-xs"
+                    title="Assign Account Executive"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+      </div>
+    </div>
+  );
 }

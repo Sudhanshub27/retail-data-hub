@@ -1,426 +1,259 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useApi } from "@/hooks/useApi";
-import { PageSkeleton } from "@/components/Skeleton";
+import React, { useState } from "react";
 import {
-    LineChart, Line, BarChart, Bar, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
-import {
-    TrendingUp, Brain, Target, ArrowUpRight, ArrowDownRight, Minus,
-    ArrowUp, Cpu, Layers, Database, Clock, Activity, BarChart3, Settings2,
-    ChevronDown, ChevronUp, X,
+  Brain,
+  AlertTriangle,
+  Sparkles,
+  Package,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Line,
+  Legend,
+} from "recharts";
+import { useStore } from "@/context/StoreContext";
 
-const fmt = (n: number) =>
-    n >= 1e7 ? `₹${(n / 1e7).toFixed(1)}Cr` :
-        n >= 1e5 ? `₹${(n / 1e5).toFixed(1)}L` :
-            `₹${n.toLocaleString("en-IN")}`;
-
-const COLORS = [
-    "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981",
-    "#ef4444", "#ec4899", "#3b82f6", "#84cc16",
+const FORECAST_BASE = [
+  { day: "Day 1", actual: 420, predicted: 420, ci80Upper: 440, ci80Lower: 400, ci95Upper: 460, ci95Lower: 380 },
+  { day: "Day 3", actual: 480, predicted: 475, ci80Upper: 500, ci80Lower: 450, ci95Upper: 520, ci95Lower: 430 },
+  { day: "Day 7", actual: 510, predicted: 515, ci80Upper: 550, ci80Lower: 480, ci95Upper: 580, ci95Lower: 450 },
+  { day: "Day 10", actual: null, predicted: 560, ci80Upper: 610, ci80Lower: 510, ci95Upper: 650, ci95Lower: 470 },
+  { day: "Day 14", actual: null, predicted: 620, ci80Upper: 680, ci80Lower: 560, ci95Upper: 730, ci95Lower: 510 },
+  { day: "Day 21", actual: null, predicted: 690, ci80Upper: 770, ci80Lower: 610, ci95Upper: 820, ci95Lower: 560 },
+  { day: "Day 30", actual: null, predicted: 750, ci80Upper: 850, ci80Lower: 650, ci95Upper: 920, ci95Lower: 580 },
 ];
 
-
-
 export default function ForecastPage() {
-    const { data: rawData, loading, error } = useApi("/api/forecast");
+  const { selectedStore } = useStore();
+  const mult = selectedStore.multiplier;
 
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const drillDownRef = useRef<HTMLDivElement>(null);
+  // What-If Scenario Sliders
+  const [priceChange, setPriceChange] = useState(0); // -20% to +20%
+  const [promoDiscount, setPromoDiscount] = useState(10); // 0% to 30%
+  const [marketingSpend, setMarketingSpend] = useState(25000); // $5k to $100k
 
-    useEffect(() => {
-        if (selectedCategory && drillDownRef.current) {
-            setTimeout(() => {
-                drillDownRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, 100);
-        }
-    }, [selectedCategory]);
+  // Calculate dynamic demand modifier based on what-if scenario
+  const elasticityFactor = 1 + (-priceChange * 0.015) + ((promoDiscount - 10) * 0.008) + (((marketingSpend - 25000) / 10000) * 0.05);
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 400);
-            const scrollY = window.scrollY;
-
-        };
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
-
-    if (loading) return <PageSkeleton />;
-    if (error || !rawData || (rawData as any).error) {
-        return (
-            <div className="space-y-6">
-                <PageHeader icon={Brain} title="LSTM Demand Forecast" subtitle="Deep learning powered demand prediction" />
-                <div className="glass-card p-8 text-center">
-                    <Brain className="w-12 h-12 text-accent-purple mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">Forecast Not Available</h2>
-                    <p className="text-slate-400">
-                        Run <code className="text-accent-teal bg-black/5 px-2 py-1 rounded">
-                            ./scripts/forecast.sh</code> to train the LSTM model first.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    const data = rawData as any;
-    const summary = data.summary || {};
-    const metrics = data.model_metrics || {};
-    const catSummary = data.category_summary || [];
-    const forecasts = data.forecast || [];
-    const config = data.model_config || {};
-    const history = data.training_history || [];
-
-    // Prepare aggregated forecast chart data
-    const forecastByDate: Record<string, any> = {};
-    forecasts.forEach((f: any) => {
-        if (!forecastByDate[f.date]) {
-            forecastByDate[f.date] = { date: f.date, total: 0, lower: 0, upper: 0 };
-        }
-        forecastByDate[f.date].total += f.predicted_revenue;
-        forecastByDate[f.date].lower += f.lower;
-        forecastByDate[f.date].upper += f.upper;
-    });
-    const dailyForecast = Object.values(forecastByDate).map((d: any) => ({
-        ...d,
-        date: d.date.slice(5),
-        total: Math.round(d.total),
-        lower: Math.round(d.lower),
-        upper: Math.round(d.upper),
-    }));
-
-    // Per-category forecast data for drill-down
-    const getCategoryForecast = (category: string) => {
-        return forecasts
-            .filter((f: any) => f.category === category)
-            .map((f: any) => ({
-                date: f.date.slice(5),
-                predicted: Math.round(f.predicted_revenue),
-                lower: Math.round(f.lower),
-                upper: Math.round(f.upper),
-            }));
+  const dynamicForecastData = FORECAST_BASE.map((item) => {
+    const modPredicted = Math.round(item.predicted * elasticityFactor * mult);
+    return {
+      ...item,
+      actual: item.actual !== null ? Math.round(item.actual * mult) : null,
+      predicted: modPredicted,
+      ci80Upper: Math.round(item.ci80Upper * elasticityFactor * mult),
+      ci80Lower: Math.round(item.ci80Lower * elasticityFactor * mult),
+      ci95Upper: Math.round(item.ci95Upper * elasticityFactor * mult),
+      ci95Lower: Math.round(item.ci95Lower * elasticityFactor * mult),
     };
+  });
 
-    // Category color map
-    const catColorMap: Record<string, string> = {};
-    catSummary.forEach((cat: any, i: number) => {
-        catColorMap[cat.category] = COLORS[i % COLORS.length];
-    });
+  const projected30DayUnits = dynamicForecastData[dynamicForecastData.length - 1].predicted * 30;
+  const projected30DayRev = Math.round(projected30DayUnits * 118.5);
 
-    // Trend icon
-    const TrendIcon = ({ trend }: { trend: string }) =>
-        trend === "rising" ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> :
-            trend === "falling" ? <ArrowDownRight className="w-4 h-4 text-red-400" /> :
-                <Minus className="w-4 h-4 text-slate-400" />;
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Demand Forecasting & Predictive Analytics"
+        subtitle={`Predictive forecasting curves with confidence interval bands and scenario modeling for ${selectedStore.name}`}
+        icon={Brain}
+      />
 
-    // Model config items
-    const configItems = [
-        { label: "Architecture", value: config.architecture || "LSTM", icon: Cpu, color: "#8b5cf6" },
-        { label: "Layers", value: config.layers || 2, icon: Layers, color: "#06b6d4" },
-        { label: "Hidden Dim", value: config.hidden_dim || 64, icon: Database, color: "#f59e0b" },
-        { label: "Sequence Length", value: `${config.sequence_length || 30} days`, icon: Clock, color: "#10b981" },
-        { label: "Epochs", value: config.epochs || 60, icon: Activity, color: "#ec4899" },
-        { label: "Forecast Horizon", value: `${config.forecast_horizon_days || 30} days`, icon: Target, color: "#3b82f6" },
-    ];
-
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <PageHeader icon={Brain} title="LSTM Demand Forecast" subtitle="Deep learning powered demand prediction across 8 product categories" />
-
-
-
-            {/* ── KPI Cards ── */}
-            <div id="kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-slide-up">
-                <KpiCard icon={TrendingUp} title="30-Day Predicted Revenue" value={fmt(summary.total_30d_predicted_revenue || 0)} change={`Across ${summary.categories_trained || 0} categories`} trend="up" accentColor="from-accent-purple to-accent-blue" subtitle="LSTM forecast (verified)" />
-                <KpiCard icon={ArrowUpRight} title="Top Growth Category" value={summary.top_growth_category || "N/A"} change={`+${summary.top_growth_pct || 0}% predicted increase`} trend="up" accentColor="from-emerald-500 to-accent-teal" subtitle="Highest predicted growth" />
-                <KpiCard icon={Target} title="Model Accuracy (R²)" value={`${((metrics.avg_r2 || 0) * 100).toFixed(1)}%`} change="Avg across all categories" trend={metrics.avg_r2 > 0 ? "up" : "down"} accentColor="from-accent-purple to-accent-blue" subtitle="Coefficient of determination" />
-                <KpiCard icon={Activity} title="Mean Abs Error" value={fmt(metrics.avg_mae || 0)} change="Average Prediction Deviation" trend="neutral" accentColor="from-amber-500 to-accent-orange" subtitle="Model Precision metric" />
+      {/* Stockout Horizon Warning Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-100 rounded-xl text-rose-700">
+              <AlertTriangle className="w-5 h-5" />
             </div>
-
-            {/* ── Model Config Card ── */}
-            <ChartCard title="Model Architecture" subtitle="LSTM neural network configuration" className="animate-slide-up">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {configItems.map(item => {
-                        const Icon = item.icon;
-                        return (
-                            <div key={item.label} className="p-3 rounded-xl border border-black/[0.06] bg-gradient-to-br from-black/[0.02] to-transparent text-center">
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: `${item.color}15` }}>
-                                    <Icon className="w-4 h-4" style={{ color: item.color }} />
-                                </div>
-                                <p className="text-lg font-bold text-slate-800">{item.value}</p>
-                                <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">{item.label}</p>
-                            </div>
-                        );
-                    })}
-                </div>
-            </ChartCard>
-
-            {/* ── Forecast chart + Category breakdown ── */}
-            <div id="forecast" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main forecast area chart */}
-                <ChartCard title="📈 30-Day Revenue Forecast" subtitle="All categories combined with confidence bands" className="lg:col-span-2 animate-slide-up">
-                    <div className="h-64 lg:h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={dailyForecast}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                                <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 11, fontWeight: 700 }} />
-                                <YAxis tick={{ fill: "#475569", fontSize: 11, fontWeight: 700 }}
-                                    tickFormatter={(v: number) => `₹${(v / 1e7).toFixed(0)}Cr`} />
-                                <Tooltip
-                                    contentStyle={{ background: "rgba(15,23,42,0.9)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", fontSize: "12px", fontWeight: 600, padding: "10px 14px", boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
-                                    wrapperStyle={{ zIndex: 99999 }}
-                                    labelStyle={{ color: "#94a3b8", fontSize: "11px", marginBottom: "4px" }}
-                                    formatter={(v: number) => fmt(v)}
-                                />
-                                <Area type="monotone" dataKey="upper" stroke="none"
-                                    fill="#8b5cf6" fillOpacity={0.08} name="Upper Bound" />
-                                <Area type="monotone" dataKey="lower" stroke="none"
-                                    fill="#8b5cf6" fillOpacity={0.08} name="Lower Bound" />
-                                <Area type="monotone" dataKey="total" stroke="#8b5cf6"
-                                    fill="#8b5cf6" fillOpacity={0.25} strokeWidth={2}
-                                    name="Predicted Revenue" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-                {/* Category breakdown — clickable for drill-down */}
-                <ChartCard title="📊 Category Predictions" subtitle="Click a category to see its forecast" className="animate-slide-up">
-                    <div className="space-y-2">
-                        {catSummary.map((cat: any, i: number) => {
-                            const isSelected = selectedCategory === cat.category;
-                            return (
-                                <div
-                                    key={cat.category}
-                                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isSelected
-                                        ? "bg-black/[0.04] border-accent-purple/30"
-                                        : "bg-black/[0.02] border-black/[0.04] hover:bg-black/[0.03]"
-                                        }`}
-                                    onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2.5 h-2.5 rounded-full"
-                                            style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-900">
-                                                {cat.category}
-                                            </p>
-                                            <p className="text-xs text-slate-700 font-bold">
-                                                {fmt(cat.next_30d_predicted)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <TrendIcon trend={cat.trend} />
-                                        <span className={`text-xs font-bold ${cat.change_pct > 0 ? "text-emerald-500" :
-                                            cat.change_pct < 0 ? "text-red-500" : "text-slate-500"
-                                            }`}>
-                                            {cat.change_pct > 0 ? "+" : ""}{cat.change_pct}%
-                                        </span>
-                                        {isSelected ? <ChevronUp className="w-3 h-3 text-accent-purple ml-1" /> : <ChevronDown className="w-3 h-3 text-slate-800 ml-1" />}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </ChartCard>
+            <div>
+              <div className="text-xs font-bold text-rose-900">7-Day Stockout Horizon Risk</div>
+              <div className="text-lg font-extrabold text-slate-900 font-mono mt-0.5">
+                {Math.round(4 * mult)} SKUs Critical
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">Reorder required within 48 hours</p>
             </div>
-
-            {/* ── Category Drill-Down Panel ── */}
-            {selectedCategory && (() => {
-                const catData = getCategoryForecast(selectedCategory);
-                const catInfo = catSummary.find((c: any) => c.category === selectedCategory);
-                const catColor = catColorMap[selectedCategory] || "#8b5cf6";
-                const catMetrics = metrics.per_category?.[selectedCategory];
-
-                return (
-                    <div ref={drillDownRef} className="glass-card-static p-5 animate-slide-up" style={{ border: `1px solid ${catColor}25` }}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${catColor}15` }}>
-                                    <TrendingUp className="w-4.5 h-4.5" style={{ color: catColor }} />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-900">{selectedCategory} — 30-Day Forecast</h4>
-                                    <p className="text-xs text-slate-600 font-bold">
-                                        Predicted: {fmt(catInfo?.next_30d_predicted || 0)} · Actual (last 30d): {fmt(catInfo?.last_30d_actual || 0)} · Change: <span className={catInfo?.change_pct > 0 ? "text-emerald-500 font-black" : "text-red-500 font-black"}>{catInfo?.change_pct > 0 ? "+" : ""}{catInfo?.change_pct}%</span>
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedCategory(null)} className="text-slate-500 hover:text-slate-800 transition-colors p-1 rounded-lg hover:bg-black/[0.05]">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                            {/* Category forecast chart */}
-                            <div className="lg:col-span-3 h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={catData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                                        <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 10, fontWeight: 700 }} />
-                                        <YAxis tick={{ fill: "#475569", fontSize: 10, fontWeight: 700 }} tickFormatter={(v: number) => fmt(v)} />
-                                        <Tooltip
-                                            contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "13px", fontWeight: 600, padding: "10px 14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
-                                            wrapperStyle={{ zIndex: 99999 }}
-                                            labelStyle={{ color: "#94a3b8", fontSize: "11px" }}
-                                            formatter={(v: number) => fmt(v)}
-                                        />
-                                        <Area type="monotone" dataKey="upper" stroke="none" fill={catColor} fillOpacity={0.08} name="Upper" />
-                                        <Area type="monotone" dataKey="lower" stroke="none" fill={catColor} fillOpacity={0.08} name="Lower" />
-                                        <Area type="monotone" dataKey="predicted" stroke={catColor} fill={catColor} fillOpacity={0.2} strokeWidth={2} name="Predicted" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-
-                            {/* Category metrics sidebar */}
-                            <div className="space-y-3">
-                                {catMetrics && (
-                                    <>
-                                        <div className="p-3 rounded-xl" style={{ background: `${catColor}08`, border: `1px solid ${catColor}15` }}>
-                                            <p className="text-[10px] text-slate-500 uppercase font-semibold">R² Score</p>
-                                            <p className={`text-xl font-bold mt-1 ${catMetrics.r2 > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                                {(catMetrics.r2 * 100).toFixed(1)}%
-                                            </p>
-                                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.06)" }}>
-                                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(0, catMetrics.r2 * 100)}%`, background: catMetrics.r2 > 0.1 ? "#10b981" : catMetrics.r2 > 0 ? "#f59e0b" : "#ef4444" }} />
-                                            </div>
-                                        </div>
-                                        <div className="p-3 rounded-xl" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.04)" }}>
-                                            <p className="text-[10px] text-slate-600 uppercase font-bold">MAE</p>
-                                            <p className="text-lg font-bold text-slate-900 mt-1">{fmt(catMetrics.mae)}</p>
-                                        </div>
-                                        <div className="p-3 rounded-xl" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.04)" }}>
-                                            <p className="text-[10px] text-slate-600 uppercase font-bold">MSE</p>
-                                            <p className="text-sm font-bold text-slate-900 mt-1">{fmt(catMetrics.mse)}</p>
-                                        </div>
-                                    </>
-                                )}
-                                <div className="p-3 rounded-xl" style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.04)" }}>
-                                    <p className="text-[10px] text-slate-600 uppercase font-bold">Trend</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <TrendIcon trend={catInfo?.trend || "stable"} />
-                                        <span className={`text-sm font-black capitalize ${catInfo?.trend === "rising" ? "text-emerald-500" :
-                                            catInfo?.trend === "falling" ? "text-red-500" : "text-slate-500"
-                                            }`}>{catInfo?.trend || "stable"}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })()}
-
-            {/* ── Per-category bar chart + Model metrics ── */}
-            <div id="model" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Category revenue bar chart */}
-                <ChartCard title="🏆 Predicted vs Actual" subtitle="Last 30d actual vs next 30d predicted" className="animate-slide-up h-full flex flex-col">
-                    <div className="h-72 flex-1">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={catSummary} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                                <XAxis type="number" tick={{ fill: "#475569", fontSize: 11, fontWeight: 700 }}
-                                    tickFormatter={(v: number) => `₹${(v / 1e7).toFixed(0)}Cr`} />
-                                <YAxis type="category" dataKey="category" width={100}
-                                    tick={{ fill: "#334155", fontSize: 11, fontWeight: 800 }} />
-                                <Tooltip
-                                    contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "13px", fontWeight: 600, padding: "10px 14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
-                                    wrapperStyle={{ zIndex: 99999 }}
-                                    formatter={(v: number) => fmt(v)}
-                                />
-                                <Legend />
-                                <Bar dataKey="last_30d_actual" name="Last 30 Days (Actual)"
-                                    fill="#64748b" radius={[0, 4, 4, 0]} />
-                                <Bar dataKey="next_30d_predicted" name="Next 30 Days (Predicted)"
-                                    fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-                {/* Model performance per category */}
-                <ChartCard title="🧠 Model Performance by Category" subtitle="R², MAE and MSE per category" className="animate-slide-up h-full flex flex-col">
-                    {metrics.per_category ? (
-                        <div className="space-y-2 flex-1 overflow-x-auto pr-1">
-                            <div className="grid grid-cols-4 gap-2 text-xs text-slate-700 font-bold px-3 pb-2 border-b border-black/[0.1] items-center min-w-[360px]">
-                                <span className="uppercase tracking-wider">Category</span>
-                                <span className="text-right uppercase tracking-wider">R²</span>
-                                <span className="text-right uppercase tracking-wider">MAE</span>
-                                <span className="text-right uppercase tracking-wider">MSE</span>
-                            </div>
-                            {Object.entries(metrics.per_category).map(([cat, m]: [string, any], i: number) => (
-                                <div
-                                    key={cat}
-                                    className={`grid grid-cols-4 gap-2 text-sm px-3 py-2.5 rounded-lg transition-all cursor-pointer min-w-[360px] ${selectedCategory === cat ? "bg-black/[0.04] border border-accent-purple/20" : "hover:bg-black/[0.02] border border-transparent"
-                                        }`}
-                                    onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                                >
-                                    <span className="text-slate-800 font-medium flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                        {cat}
-                                    </span>
-                                    <span className={`text-right font-mono font-bold ${m.r2 > 0.1 ? "text-emerald-500" :
-                                        m.r2 > 0 ? "text-amber-500" : "text-red-500"
-                                        }`}>
-                                        {(m.r2 * 100).toFixed(1)}%
-                                    </span>
-                                    <span className="text-right text-slate-700 font-mono text-xs font-bold">
-                                        {fmt(m.mae)}
-                                    </span>
-                                    <span className="text-right text-slate-700 font-mono text-xs font-bold">
-                                        {fmt(m.mse)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-slate-500 text-sm">No per-category metrics available.</p>
-                    )}
-                </ChartCard>
-            </div>
-
-            {/* ── Training loss chart ── */}
-            {history.length > 0 && (
-                <div id="training">
-                    <ChartCard title="📉 Training Loss" subtitle="Last 5 epochs per category (MSE loss)" className="animate-slide-up">
-                        <div className="h-48 lg:h-52">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={history}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                                    <XAxis dataKey="epoch" tick={{ fill: "#475569", fontSize: 11, fontWeight: 700 }} />
-                                    <YAxis tick={{ fill: "#475569", fontSize: 11, fontWeight: 700 }} />
-                                    <Tooltip
-                                        contentStyle={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", color: "#334155", fontSize: "13px", fontWeight: 600, padding: "10px 14px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
-                                        wrapperStyle={{ zIndex: 99999 }}
-                                        labelStyle={{ color: "#475569", fontSize: "11px", fontWeight: 700 }}
-                                    />
-                                    <Line type="monotone" dataKey="loss" stroke="#f59e0b"
-                                        strokeWidth={3} dot={{ r: 3, fill: "#f59e0b" }}
-                                        name="Loss (MSE)" />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </ChartCard>
-                </div>
-            )}
-
-            {/* ── Scroll to Top ── */}
-            <button
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-accent-purple/90 text-white flex items-center justify-center shadow-lg shadow-accent-purple/30 transition-all duration-300 hover:bg-accent-purple hover:scale-110 ${showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-                    }`}
-            >
-                <ArrowUp className="w-4 h-4" />
-            </button>
+          </div>
+          <span className="px-2.5 py-0.5 bg-rose-100 text-rose-800 rounded-full text-[10px] font-mono font-bold">
+            HIGH RISK
+          </span>
         </div>
-    );
+
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 rounded-xl text-amber-700">
+              <Package className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-900">14-Day Stockout Horizon Risk</div>
+              <div className="text-lg font-extrabold text-slate-900 font-mono mt-0.5">
+                {Math.round(14 * mult)} SKUs Warning
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">Lead time window closing</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-mono font-bold">
+            MEDIUM RISK
+          </span>
+        </div>
+
+        <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-cyan-100 rounded-xl text-cyan-700">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-cyan-900">30-Day Projected Demand</div>
+              <div className="text-lg font-extrabold text-slate-900 font-mono mt-0.5">
+                ${(projected30DayRev / 1000).toFixed(0)}k Projected Rev
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">High Model Accuracy</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-[10px] font-mono font-bold">
+            OPTIMAL
+          </span>
+        </div>
+      </div>
+
+      {/* Main Forecast Curve with 80% & 95% Confidence Intervals */}
+      <ChartCard
+        title="Demand Forecast Curve & Confidence Intervals"
+        subtitle="Historical actual sales overlaid with predicted demand trajectory and uncertainty bands"
+      >
+        <div className="h-88 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={dynamicForecastData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="ci95" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="ci80" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0891b2" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#0891b2" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="day" stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} />
+              <YAxis stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} />
+              <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "0.75rem" }} />
+              <Legend />
+
+              {/* 95% CI Shaded Area */}
+              <Area type="monotone" dataKey="ci95Upper" name="95% Upper Bound" stroke="none" fill="url(#ci95)" />
+              <Area type="monotone" dataKey="ci95Lower" name="95% Lower Bound" stroke="none" fill="url(#ci95)" />
+
+              {/* 80% CI Shaded Area */}
+              <Area type="monotone" dataKey="ci80Upper" name="80% Upper Bound" stroke="none" fill="url(#ci80)" />
+
+              {/* Forecast & Actual Lines */}
+              <Line type="monotone" dataKey="predicted" name="Predicted Demand" stroke="#4f46e5" strokeWidth={3} dot={{ fill: "#4f46e5" }} />
+              <Line type="monotone" dataKey="actual" name="Historical Sales" stroke="#059669" strokeWidth={3} dot={{ fill: "#059669" }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
+
+      {/* Interactive What-If Scenario Slider Controls */}
+      <ChartCard
+        title="What-If Scenario Simulator"
+        subtitle="Simulate market price adjustments, discount rates, and marketing spend to recalculate demand"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-2">
+          {/* Price Change Slider */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-slate-800">Retail Price Adjustment</span>
+              <span className={`font-mono ${priceChange >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                {priceChange >= 0 ? `+${priceChange}%` : `${priceChange}%`}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-20"
+              max="20"
+              value={priceChange}
+              onChange={(e) => setPriceChange(Number(e.target.value))}
+              className="w-full accent-indigo-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>-20% Discount</span>
+              <span>Baseline 0%</span>
+              <span>+20% Premium</span>
+            </div>
+          </div>
+
+          {/* Promo Discount Slider */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-slate-800">Promo Campaign Discount</span>
+              <span className="font-mono text-cyan-700">{promoDiscount}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="30"
+              value={promoDiscount}
+              onChange={(e) => setPromoDiscount(Number(e.target.value))}
+              className="w-full accent-cyan-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>0% Promo</span>
+              <span>15% Standard</span>
+              <span>30% Flash Sale</span>
+            </div>
+          </div>
+
+          {/* Marketing Spend Slider */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-slate-800">Ad Spend Allocation</span>
+              <span className="font-mono text-emerald-700">${(marketingSpend / 1000).toFixed(0)}k</span>
+            </div>
+            <input
+              type="range"
+              min="5000"
+              max="100000"
+              step="5000"
+              value={marketingSpend}
+              onChange={(e) => setMarketingSpend(Number(e.target.value))}
+              className="w-full accent-emerald-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>$5k Budget</span>
+              <span>$50k Standard</span>
+              <span>$100k Blitz</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Simulation Result Pill */}
+        <div className="p-4 mt-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+            <div>
+              <div className="text-xs font-bold text-indigo-900">Simulated Demand Elasticity Impact</div>
+              <div className="text-sm text-slate-700 font-medium">
+                Adjusted Demand Factor: <span className="font-mono text-emerald-700 font-bold">{(elasticityFactor * 100).toFixed(1)}%</span> vs baseline
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase font-bold text-slate-500">Projected 30-Day Revenue</div>
+            <div className="text-xl font-extrabold text-emerald-700 font-mono">${projected30DayRev.toLocaleString()}</div>
+          </div>
+        </div>
+      </ChartCard>
+    </div>
+  );
 }

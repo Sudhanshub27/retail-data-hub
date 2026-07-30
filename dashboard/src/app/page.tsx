@@ -1,347 +1,312 @@
 "use client";
 
-import { useState } from "react";
-import { useApi } from "@/hooks/useApi";
-import { PageSkeleton } from "@/components/Skeleton";
+import React, { useState } from "react";
 import {
-    IndianRupee,
-    ShoppingBag,
-    Users,
-    CreditCard,
+  DollarSign,
+  TrendingUp,
+  ShoppingCart,
+  Receipt,
+  LayoutGrid,
+  Sparkles,
+  Radio,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
+  AlertTriangle,
 } from "lucide-react";
-import { LayoutDashboard } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import ExecutiveSummary from "@/components/ExecutiveSummary";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
-import DetailsModal from "@/components/DetailsModal";
-import LiveFeed from "@/components/LiveFeed";
 import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
+import { useStore } from "@/context/StoreContext";
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        const val = payload[0].value;
-        const formatted =
-            val >= 10000000
-                ? `₹${(val / 10000000).toFixed(2)} Cr`
-                : `₹${(val / 100000).toFixed(2)} Lakhs`;
+// Baseline revenue data
+const RAW_REVENUE_DATA = [
+  { date: "Mon", revenue: 42500, profit: 14200, target: 40000 },
+  { date: "Tue", revenue: 51200, profit: 17800, target: 40000 },
+  { date: "Wed", revenue: 48900, profit: 16500, target: 42000 },
+  { date: "Thu", revenue: 63100, profit: 22400, target: 45000 },
+  { date: "Fri", revenue: 78400, profit: 28900, target: 50000 },
+  { date: "Sat", revenue: 92300, profit: 34100, target: 60000 },
+  { date: "Sun", revenue: 84100, profit: 30200, target: 55000 },
+];
 
-        return (
-            <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xl border border-slate-800 text-xs space-y-1">
-                <p className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">{label}</p>
-                <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                    <span className="font-bold text-base text-white">{formatted}</span>
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
+const RAW_CHANNEL_DATA = [
+  { channel: "E-Commerce Web", revenue: 184500, growth: "+18.4%", color: "#4f46e5" },
+  { channel: "Physical POS Stores", revenue: 142100, growth: "+6.2%", color: "#059669" },
+  { channel: "Mobile App", revenue: 98400, growth: "+24.8%", color: "#0891b2" },
+  { channel: "Marketplaces (Amazon/Walmart)", revenue: 52400, growth: "+11.1%", color: "#d97706" },
+];
 
-function fmt(n: number): string {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    return `₹${n.toLocaleString("en-IN")}`;
-}
-
-function fmtNum(n: number): string {
-    return n.toLocaleString("en-IN");
-}
-
-type ModalType = "revenue" | "orders" | "customers" | "aov" | null;
+const LIVE_TICKER_ITEMS = [
+  { id: "1", text: "New Order #90412 in NYC Broadway ($320.00)", time: "Just now", type: "order" },
+  { id: "2", text: "Forecast Alert: SKU-8842 demand surge predicted for weekend promo", time: "2m ago", type: "ai" },
+  { id: "3", text: "Inventory Alert: Store #104 Chicago stock below reorder threshold", time: "5m ago", type: "alert" },
+  { id: "4", text: "Fraud Guard: Flagged rapid velocity checkout attempt ($1,450.00)", time: "8m ago", type: "fraud" },
+];
 
 export default function OverviewPage() {
-    const { data, loading } = useApi<any>("/api/overview");
-    const { data: commercialData } = useApi<any>("/api/commercial");
-    const { data: customerData } = useApi<any>("/api/customers");
-    const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const { selectedStore, setIsCmdKOpen } = useStore();
+  const mult = selectedStore.multiplier;
 
-    if (loading || !data) return <PageSkeleton />;
+  const [isCustomizeMode, setIsCustomizeMode] = useState(false);
+  const [visibleWidgets, setVisibleWidgets] = useState({
+    revenueChart: true,
+    channelGrid: true,
+    liveTicker: true,
+    kpis: true,
+  });
 
-    const rev = data.revenue || {};
-    const channelMix = (data.channel_mix || []).map((c: any) => ({
-        name: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
-        value: c.revenue,
-        pct: c.revenue_pct,
-        transactions: c.transactions,
-        units_sold: c.units_sold,
-        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
-    }));
-    const monthlyTrend = (data.monthly_trend || []).map((m: any) => ({
-        month: m.year_month,
-        revenue: m.revenue,
-    }));
-    const customers = data.customers || {};
+  // Dynamically scaled data according to store scope
+  const chartData = RAW_REVENUE_DATA.map((d) => ({
+    ...d,
+    revenue: Math.round(d.revenue * mult),
+    profit: Math.round(d.profit * mult),
+    target: Math.round(d.target * mult),
+  }));
 
-    /* ── Build modal row data ── */
-    const revenueRows = (data.channel_mix || []).map((c: any) => ({
-        label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
-        value: fmt(c.revenue),
-        subValue: `${fmtNum(c.transactions)} transactions`,
-        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
-        percentage: c.revenue_pct,
-    }));
+  const totalRevenue = chartData.reduce((acc, curr) => acc + curr.revenue, 0);
+  const totalProfit = chartData.reduce((acc, curr) => acc + curr.profit, 0);
+  const totalOrders = Math.round(3840 * mult);
+  const aov = Math.round(118.5 * (0.9 + mult * 0.1));
 
-    const ordersRows = (data.channel_mix || []).map((c: any) => ({
-        label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
-        value: fmtNum(c.transactions),
-        subValue: `${fmtNum(c.units_sold)} units · ${fmt(c.revenue)} revenue`,
-        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
-        percentage: c.revenue_pct,
-    }));
+  return (
+    <div className="space-y-6">
+      {/* Header with Store Filter indicator & Customizer Toggle */}
+      <PageHeader
+        title="Executive Overview"
+        subtitle={`Real-time sales & performance metrics for ${selectedStore.name}`}
+        icon={LayoutGrid}
+        badge={selectedStore.type}
+        badgeColor="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold"
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCustomizeMode(!isCustomizeMode)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                isCustomizeMode
+                  ? "bg-amber-50 text-amber-700 border border-amber-300"
+                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              {isCustomizeMode ? "Exit Customizer" : "Customize Layout"}
+            </button>
+          </div>
+        }
+      />
 
-    const totalCust = customers.total_unique_customers || 0;
-    const oneTime = customers.one_time_buyers || 0;
-    const repeatBuyers = customers.repeat_buyers || 0;
-    const repeatPct = customers.repeat_rate_pct || 0;
-    const oneTimePct = totalCust > 0 ? ((oneTime / totalCust) * 100) : 0;
-    const customerRows = [
-        {
-            label: "Repeat Buyers",
-            value: fmtNum(repeatBuyers),
-            subValue: `${repeatPct.toFixed(1)}% repeat rate`,
-            color: "#6366f1",
-            percentage: repeatPct,
-        },
-        {
-            label: "One-Time Buyers",
-            value: fmtNum(oneTime),
-            subValue: `${oneTimePct.toFixed(1)}% of total`,
-            color: "#14b8a6",
-            percentage: oneTimePct,
-        },
-    ];
-
-    const aovRows = (data.channel_mix || []).map((c: any) => ({
-        label: c.channel === "POS" ? "POS (In-Store)" : "Web (Online)",
-        value: fmt(c.transactions > 0 ? c.revenue / c.transactions : 0),
-        subValue: `Based on ${fmtNum(c.transactions)} transactions`,
-        color: c.channel === "POS" ? "#6366f1" : "#14b8a6",
-    }));
-
-    const citySales = (commercialData?.city_sales || []).slice(0, 5);
-    const revenueCityRows = citySales.map((c: any, i: number) => ({
-        label: c.city,
-        value: fmt(c.revenue),
-        subValue: `${fmtNum(c.transactions)} txns · #${i + 1}`,
-        color: ["#6366f1", "#3b82f6", "#14b8a6", "#ec4899", "#f59e0b"][i],
-    }));
-
-    return (
-        <div className="space-y-6">
-            <PageHeader
-                icon={LayoutDashboard}
-                title="Overview"
-                subtitle="Your retail business at a glance — key metrics and trends"
-            />
-
-            <ExecutiveSummary />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up">
-                <KpiCard
-                    icon={IndianRupee}
-                    title="Total Revenue"
-                    value={fmt(rev.total_revenue || 0)}
-                    change={`${(rev.total_transactions || 0).toLocaleString()} txns`}
-                    trend="up"
-                    accentColor="from-indigo-600 to-indigo-700"
-                    subtitle="All time"
-                    onClick={() => setActiveModal("revenue")}
-                />
-                <KpiCard
-                    icon={ShoppingBag}
-                    title="Total Orders"
-                    value={(rev.total_transactions || 0).toLocaleString()}
-                    change={`${(rev.total_units_sold || 0).toLocaleString()} units`}
-                    trend="up"
-                    accentColor="from-blue-600 to-indigo-600"
-                    subtitle="All time"
-                    onClick={() => setActiveModal("orders")}
-                />
-                <KpiCard
-                    icon={Users}
-                    title="Unique Customers"
-                    value={(customers.total_unique_customers || 0).toLocaleString()}
-                    change={`${customers.repeat_rate_pct || 0}% repeat`}
-                    trend="up"
-                    accentColor="from-teal-600 to-emerald-600"
-                    subtitle="Active buyers"
-                    onClick={() => setActiveModal("customers")}
-                />
-                <KpiCard
-                    icon={CreditCard}
-                    title="Avg Order Value"
-                    value={fmt(rev.avg_transaction_value || 0)}
-                    change="Per transaction"
-                    trend="neutral"
-                    accentColor="from-purple-600 to-pink-600"
-                    subtitle="Across all channels"
-                    onClick={() => setActiveModal("aov")}
-                />
-            </div>
-
-            {/* ── Live Feed ── */}
-            <div className="animate-slide-up" style={{ animationDelay: "0.05s" }}>
-                <LiveFeed />
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 animate-slide-up" style={{ animationDelay: "0.15s" }}>
-                <ChartCard
-                    title="Revenue Trend"
-                    subtitle="Monthly revenue across all channels"
-                    className="xl:col-span-2"
-                >
-                    <div className="h-64 lg:h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={monthlyTrend}>
-                                <defs>
-                                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                                <XAxis
-                                    dataKey="month"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: "#64748b", fontSize: 11 }}
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: "#64748b", fontSize: 11 }}
-                                    tickFormatter={(v) => `₹${(v / 10000000).toFixed(0)}Cr`}
-                                />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Area
-                                    type="monotone"
-                                    dataKey="revenue"
-                                    stroke="#6366f1"
-                                    strokeWidth={2.5}
-                                    fill="url(#revenueGrad)"
-                                    activeDot={{ r: 6, strokeWidth: 0, fill: "#4f46e5" }}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-                <ChartCard title="Channel Mix" subtitle="POS vs Web revenue split">
-                    <div className="h-64 lg:h-72 flex flex-col items-center justify-center">
-                        <ResponsiveContainer width="100%" height="70%">
-                            <PieChart>
-                                <Pie
-                                    data={channelMix}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={55}
-                                    outerRadius={80}
-                                    paddingAngle={4}
-                                    dataKey="value"
-                                    stroke="none"
-                                    activeShape={{ fillOpacity: 1 }}
-                                >
-                                    {channelMix.map((entry: any, index: number) => (
-                                        <Cell key={index} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    content={({ active, payload }: any) => {
-                                        if (active && payload && payload.length) {
-                                            const d = payload[0].payload;
-                                            return (
-                                                <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xl border border-slate-800 text-xs space-y-1.5" style={{ zIndex: 9999 }}>
-                                                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">{d.name}</p>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-slate-400 font-medium">Revenue</span>
-                                                            <span className="font-bold text-white">{fmt(d.value)}</span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-slate-400 font-medium">Share</span>
-                                                            <span className="font-bold text-white">{d.pct}%</span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-slate-400 font-medium">Transactions</span>
-                                                            <span className="font-bold text-white">{fmtNum(d.transactions)}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="flex gap-6 mt-2">
-                            {channelMix.map((item: any) => (
-                                <div key={item.name} className="flex items-center gap-2">
-                                    <div
-                                        className="w-2.5 h-2.5 rounded-full"
-                                        style={{ background: item.color }}
-                                    />
-                                    <span className="text-xs text-slate-600 font-medium">{item.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </ChartCard>
-            </div>
-
-            {/* ── Drill-Down Modals ── */}
-            <DetailsModal
-                open={activeModal === "revenue"}
-                onClose={() => setActiveModal(null)}
-                title="Revenue Breakdown"
-                icon={IndianRupee}
-                accentColor="from-indigo-600 to-indigo-700"
-                rows={[...revenueRows, ...revenueCityRows]}
-                footer="Revenue split by channel and top 5 cities"
-            />
-
-            <DetailsModal
-                open={activeModal === "orders"}
-                onClose={() => setActiveModal(null)}
-                title="Orders Breakdown"
-                icon={ShoppingBag}
-                accentColor="from-blue-600 to-indigo-600"
-                rows={ordersRows}
-                footer="Orders split by POS (in-store) vs Web (online)"
-            />
-
-            <DetailsModal
-                open={activeModal === "customers"}
-                onClose={() => setActiveModal(null)}
-                title="Customer Breakdown"
-                icon={Users}
-                accentColor="from-teal-600 to-emerald-600"
-                rows={customerRows}
-                footer="New vs returning customers across all channels"
-            />
-
-            <DetailsModal
-                open={activeModal === "aov"}
-                onClose={() => setActiveModal(null)}
-                title="Avg Order Value by Channel"
-                icon={CreditCard}
-                accentColor="from-purple-600 to-pink-600"
-                rows={aovRows}
-                footer="Average transaction value per channel"
-            />
+      {/* Customizable Widget Selector Panel (when active) */}
+      {isCustomizeMode && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-slide-down flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-amber-800 font-bold">
+            <SlidersHorizontal className="w-4 h-4" /> Layout Customization Active: Pin or hide sections
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setVisibleWidgets((prev) => ({ ...prev, revenueChart: !prev.revenueChart }))}
+              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold flex items-center gap-1 shadow-xs"
+            >
+              {visibleWidgets.revenueChart ? <Eye className="w-3 h-3 text-emerald-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />} Revenue Chart
+            </button>
+            <button
+              onClick={() => setVisibleWidgets((prev) => ({ ...prev, channelGrid: !prev.channelGrid }))}
+              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold flex items-center gap-1 shadow-xs"
+            >
+              {visibleWidgets.channelGrid ? <Eye className="w-3 h-3 text-emerald-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />} Channels
+            </button>
+            <button
+              onClick={() => setVisibleWidgets((prev) => ({ ...prev, liveTicker: !prev.liveTicker }))}
+              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold flex items-center gap-1 shadow-xs"
+            >
+              {visibleWidgets.liveTicker ? <Eye className="w-3 h-3 text-emerald-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />} Live Feed
+            </button>
+          </div>
         </div>
-    );
+      )}
+
+      {/* Top Executive KPI Cards */}
+      {visibleWidgets.kpis && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Net Revenue"
+            value={`$${totalRevenue.toLocaleString()}`}
+            change="+14.2% YoY"
+            trend="up"
+            icon={DollarSign}
+            accentColor="emerald"
+            subtitle="7-Day Omnichannel Aggregated"
+            sparklineData={[42, 51, 48, 63, 78, 92, 84]}
+            onClick={() => setIsCmdKOpen(true)}
+          />
+          <KpiCard
+            title="Gross Profit Margin"
+            value={`${((totalProfit / totalRevenue) * 100).toFixed(1)}%`}
+            change="+2.4% vs Target"
+            trend="up"
+            icon={TrendingUp}
+            accentColor="indigo"
+            subtitle={`Net Profit: $${totalProfit.toLocaleString()}`}
+            sparklineData={[32, 34, 33, 35, 36, 37, 36.5]}
+          />
+          <KpiCard
+            title="Total Active Orders"
+            value={totalOrders.toLocaleString()}
+            change="+8.7% Velocity"
+            trend="up"
+            icon={ShoppingCart}
+            accentColor="cyan"
+            subtitle="Fulfilled & In-Transit"
+            sparklineData={[410, 480, 450, 520, 610, 720, 650]}
+          />
+          <KpiCard
+            title="Average Order Value (AOV)"
+            value={`$${aov.toFixed(2)}`}
+            change="-1.2% Promo Effect"
+            trend="down"
+            icon={Receipt}
+            accentColor="amber"
+            subtitle="Items/Order: 3.4 avg"
+            sparklineData={[124, 122, 120, 119, 118, 117, 118.5]}
+          />
+        </div>
+      )}
+
+      {/* Main Dual-Axis Area Revenue & Margin Chart */}
+      {visibleWidgets.revenueChart && (
+        <ChartCard
+          title="Revenue & Profit Trajectory"
+          subtitle="Daily gross revenue vs net profit margin"
+          badge="7-Day Window"
+        >
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} />
+                <YAxis
+                  stroke="#64748b"
+                  tick={{ fill: "#475569", fontSize: 12 }}
+                  tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  formatter={(val: number) => [`$${val.toLocaleString()}`, ""]}
+                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "0.75rem" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  name="Gross Revenue"
+                  stroke="#059669"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#colorRevenue)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="profit"
+                  name="Net Profit"
+                  stroke="#4f46e5"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#colorProfit)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Grid: Channel Distribution & Live Activity Ticker */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Channel Distribution Breakdown */}
+        {visibleWidgets.channelGrid && (
+          <ChartCard
+            title="Channel Sales Distribution"
+            subtitle="Revenue distribution across sales channels"
+            className="lg:col-span-2"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-2">
+              {RAW_CHANNEL_DATA.map((ch, idx) => {
+                const scaledRev = Math.round(ch.revenue * mult);
+                return (
+                  <div
+                    key={idx}
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors shadow-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ch.color }} />
+                        <span className="text-xs font-bold text-slate-800">{ch.channel}</span>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        {ch.growth}
+                      </span>
+                    </div>
+                    <div className="text-xl font-extrabold text-slate-900 font-mono mt-3">
+                      ${scaledRev.toLocaleString()}
+                    </div>
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${((scaledRev / (totalRevenue || 1)) * 100).toFixed(0)}%`,
+                          backgroundColor: ch.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ChartCard>
+        )}
+
+        {/* Live Activity Ticker Feed */}
+        {visibleWidgets.liveTicker && (
+          <ChartCard
+            title="Live Event Feed"
+            subtitle="High-frequency operational events"
+            badge="Live Sync"
+          >
+            <div className="space-y-3 my-1">
+              {LIVE_TICKER_ITEMS.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2.5 text-xs hover:border-slate-300 transition-colors shadow-xs"
+                >
+                  {item.type === "order" && <ShoppingCart className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />}
+                  {item.type === "ai" && <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />}
+                  {item.type === "alert" && <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />}
+                  {item.type === "fraud" && <Radio className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-slate-800 font-semibold leading-snug">{item.text}</div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-1 font-medium">{item.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+        )}
+      </div>
+    </div>
+  );
 }

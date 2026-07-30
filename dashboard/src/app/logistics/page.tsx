@@ -1,578 +1,196 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useApi } from "@/hooks/useApi";
-import { PageSkeleton } from "@/components/Skeleton";
+import React from "react";
 import {
-    Truck,
-    Clock,
-    CheckCircle,
-    AlertCircle,
-    AlertTriangle,
-    RotateCcw,
-    Package,
-    ArrowUp,
-    ChevronDown,
-    MapPin,
-    Timer,
-    TrendingDown,
-    XCircle,
-    SortAsc,
+  Truck,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  MapPin,
+  Package,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell,
-    PieChart,
-    Pie,
-    Legend,
-} from "recharts";
+import { useStore } from "@/context/StoreContext";
 
-/* ── Helpers ── */
-
-const CARRIER_COLORS = ["#8b5cf6", "#3b82f6", "#14b8a6", "#f59e0b", "#ef4444", "#ec4899", "#6b7280"];
-
-const TITLES: Record<string, { title: string; subtitle: string }> = {
-    avgDays: { title: "Avg Delivery by Carrier", subtitle: "Average days from dispatch to delivery" },
-    shipments: { title: "Total Shipments by Carrier", subtitle: "Volume distribution across logistics partners" },
-    onTimeRate: { title: "On-Time Reliability by Carrier", subtitle: "Percentage of shipments delivered within window" },
-    delayPct: { title: "Delay Propensity by Carrier", subtitle: "Carrier-specific delay rates for risk assessment" },
-};
-
-const OPTIONS = [
-    { label: "Avg Days", value: "avgDays" },
-    { label: "Shipments", value: "shipments" },
-    { label: "On-Time %", value: "onTimeRate" },
-    { label: "Delay %", value: "delayPct" },
+const CARRIERS = [
+  { name: "FedEx Express", sla: "98.4%", latency: "1.4 Days", lostRate: "0.02%", status: "Optimal" },
+  { name: "UPS Ground", sla: "96.8%", latency: "2.1 Days", lostRate: "0.04%", status: "Optimal" },
+  { name: "DHL Express Global", sla: "95.1%", latency: "2.8 Days", lostRate: "0.08%", status: "Warning" },
+  { name: "OnTrac Regional", sla: "92.4%", latency: "3.2 Days", lostRate: "0.12%", status: "Warning" },
 ];
 
-function fmtNum(n: number | undefined | null): string {
-    return (n ?? 0).toLocaleString("en-IN");
-}
+const FUNNEL_STEPS = [
+  { step: "1. Order Placed", timeAvg: "0.0 mins", count: 4820, latency: "Instant DB Sync" },
+  { step: "2. Warehouse Picked", timeAvg: "18.4 mins", count: 4790, latency: "+18m processing" },
+  { step: "3. Carrier Shipped", timeAvg: "1.2 hours", count: 4680, latency: "+1.2h sorting" },
+  { step: "4. Last-Mile Delivered", timeAvg: "1.8 days", count: 4590, latency: "SLA On-Time 97.2%" },
+];
 
-function fmtShort(n: number | undefined | null): string {
-    const v = n ?? 0;
-    if (v >= 10000000) return `${(v / 10000000).toFixed(1)}Cr`;
-    if (v >= 100000) return `${(v / 100000).toFixed(0)}L`;
-    if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-    return v.toString();
-}
-
-const GlassTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="glass-card-dark p-4 border border-white/10 max-w-xs shadow-2xl rounded-2xl">
-                <p className="text-sm text-slate-400 mb-2 font-bold tracking-tight">{label}</p>
-                <div className="space-y-1.5">
-                    {payload.map((p: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: p.color || p.stroke }} />
-                                <span className="text-xs font-medium text-slate-300">{p.name}</span>
-                            </div>
-                            <span className="text-sm font-bold text-white">
-                                {typeof p.value === "number" ? `${p.value}d` : p.value}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
-
-
-
-/* ── Drill-Down Panel ── */
-
-type DrillType = "delayed" | "delivered" | "intransit" | "returned" | null;
-
-function DrillDownPanel({
-    drill,
-    carriers,
-    overall,
-    onClose,
-}: {
-    drill: DrillType;
-    carriers: any[];
-    overall: any;
-    onClose: () => void;
-}) {
-    if (!drill) return null;
-
-    const config: Record<string, { title: string; icon: any; color: string; field: string; pctField: string; description: string }> = {
-        delayed: {
-            title: "Delayed Shipments by Carrier",
-            icon: AlertTriangle,
-            color: "#ef4444",
-            field: "delayed",
-            pctField: "delay_pct",
-            description: "Shipments that exceeded the expected delivery window",
-        },
-        delivered: {
-            title: "Delivered Shipments by Carrier",
-            icon: CheckCircle,
-            color: "#10b981",
-            field: "delivered",
-            pctField: "",
-            description: "Successfully delivered to destination",
-        },
-        intransit: {
-            title: "In-Transit Shipments by Carrier",
-            icon: Truck,
-            color: "#f59e0b",
-            field: "in_transit",
-            pctField: "",
-            description: "Currently in transit to destination",
-        },
-        returned: {
-            title: "Returned Shipments by Carrier",
-            icon: RotateCcw,
-            color: "#8b5cf6",
-            field: "returned",
-            pctField: "",
-            description: "Shipments returned to sender",
-        },
-    };
-
-    const cfg = config[drill];
-    const CfgIcon = cfg.icon;
-
-    // Sort carriers by the relevant field (descending)
-    const sorted = [...carriers]
-        .map((c, i) => {
-            const val = Number(c[cfg.field] ?? c[cfg.field.replace(/_([a-z])/g, (g) => g[1].toUpperCase())] ?? 0);
-            return {
-                ...c,
-                value: val,
-                pct: c.shipments > 0 ? (val / c.shipments * 100).toFixed(1) : "0",
-                color: CARRIER_COLORS[i % CARRIER_COLORS.length],
-            };
-        })
-        .sort((a, b) => b.value - a.value);
-
-    const totalField = sorted.reduce((s, c) => s + c.value, 0);
-
-    // Pie data
-    const pieData = sorted.filter(c => c.value > 0).map(c => ({
-        name: c.carrier,
-        value: c.value,
-        fill: c.color,
-    }));
-
-    return (
-        <div className="glass-card-static p-4 lg:p-6 animate-slide-up">
-            <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${cfg.color}15` }}>
-                        <CfgIcon className="w-5 h-5" style={{ color: cfg.color }} />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-950 uppercase tracking-tight">{cfg.title}</h3>
-                        <p className="text-xs text-slate-600 tracking-tight">{cfg.description} · <span className="font-bold whitespace-nowrap" style={{ color: cfg.color }}>{fmtNum(totalField)}</span> total</p>
-                    </div>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-black/[0.04] transition-all"
-                >
-                    <XCircle className="w-4 h-4" />
-                </button>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                {/* Carrier breakdown table */}
-                <div className="xl:col-span-2">
-                    <div className="rounded-xl overflow-x-auto border border-black/[0.06]">
-                        <table className="w-full min-w-[600px]">
-                            <thead>
-                                <tr style={{ background: `${cfg.color}08` }}>
-                                    <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider w-8">#</th>
-                                    <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Carrier</th>
-                                    <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Count</th>
-                                    <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Share</th>
-                                    <th className="text-right px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Total Shipments</th>
-                                    <th className="text-right px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Rate</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map((c, i) => {
-                                    const share = totalField > 0 ? (c.value / totalField * 100).toFixed(1) : "0";
-                                    return (
-                                        <tr key={i} className="border-t border-black/[0.04] hover:bg-black/[0.02] transition-colors">
-                                            <td className="px-4 py-3 text-xs text-slate-600 font-mono">{i + 1}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.color }} />
-                                                    <span className="text-sm font-semibold text-slate-800">{c.carrier}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className="text-sm font-bold" style={{ color: cfg.color }}>{fmtNum(c.value)}</span>
-                                            </td>
-                                            <td className="px-4 py-3 w-36">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.08)" }}>
-                                                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${share}%`, background: c.color }} />
-                                                    </div>
-                                                    <span className="text-[10px] text-slate-700 font-bold w-10 text-right">{share}%</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-slate-800 text-right font-black font-mono">{fmtNum(c.shipments)}</td>
-                                            <td className="px-4 py-3 text-right">
-                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${drill === "delivered" ? "text-emerald-400 bg-emerald-400/10" :
-                                                    drill === "delayed" ? "text-red-400 bg-red-400/10" :
-                                                        drill === "returned" ? "text-purple-400 bg-purple-400/10" :
-                                                            "text-amber-400 bg-amber-400/10"
-                                                    }`}>{c.pct}%</span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Pie chart */}
-                <div>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius="50%"
-                                    outerRadius="80%"
-                                    dataKey="value"
-                                    stroke="rgba(0,0,0,0.3)"
-                                    strokeWidth={1}
-                                >
-                                    {pieData.map((entry, i) => (
-                                        <Cell key={i} fill={entry.fill} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value: number, name: string) => [fmtNum(value), name]}
-                                    contentStyle={{
-                                        background: "rgba(15,23,42,0.9)",
-                                        backdropFilter: "blur(12px)",
-                                        border: "1px solid rgba(255,255,255,0.1)",
-                                        borderRadius: "12px",
-                                        color: "#fff",
-                                        fontSize: "12px",
-                                        fontWeight: 600,
-                                        padding: "10px 14px",
-                                        zIndex: 9999,
-                                        boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
-                                    }}
-                                    wrapperStyle={{ zIndex: 9999 }}
-                                    itemStyle={{ color: "#fff", fontSize: "12px" }}
-                                    labelStyle={{ color: "#94a3b8", fontSize: "11px", marginBottom: "4px" }}
-                                />
-                                <Legend
-                                    iconType="circle"
-                                    iconSize={8}
-                                    formatter={(value) => <span className="text-xs text-slate-400">{value}</span>}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ── Main Page ── */
+const BOTTLENECKS = [
+  { region: "Midwest DC -> Chicago Metro", issue: "Severe Weather Highway Closure I-90", delayAvg: "+14.2 Hours", impactOrders: 340, status: "Critical" },
+  { region: "West Coast -> Port of LA", issue: "Port Customs Clearance Congestion", delayAvg: "+8.5 Hours", impactOrders: 180, status: "Warning" },
+  { region: "East Coast -> NYC Tunnel", issue: "Peak Traffic Toll Plaza Latency", delayAvg: "+3.1 Hours", impactOrders: 95, status: "Minor" },
+];
 
 export default function LogisticsPage() {
-    const { data, loading } = useApi<any>("/api/operations");
-    const [activeDrill, setActiveDrill] = useState<DrillType>(null);
-    const [carrierSort, setCarrierSort] = useState<"avgDays" | "shipments" | "onTimeRate" | "delayPct">("avgDays");
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+  const { selectedStore } = useStore();
+  const mult = selectedStore.multiplier;
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 400);
-        };
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setDropdownOpen(false);
-            }
-        };
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        window.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            window.removeEventListener("scroll", handleScroll);
-            window.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, []);
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Logistics & Shipping Operations"
+        subtitle={`Carrier SLA metrics, order fulfillment funnel latency, and regional bottleneck tracking for ${selectedStore.name}`}
+        icon={Truck}
+      />
 
-    if (loading || !data) return <PageSkeleton />;
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="On-Time Delivery SLA"
+          value="97.2%"
+          change="+1.4% target"
+          trend="up"
+          icon={CheckCircle2}
+          accentColor="emerald"
+          subtitle="Target > 95.0%"
+        />
+        <KpiCard
+          title="Avg Order-to-Delivery"
+          value="1.8 Days"
+          change="-0.3 days faster"
+          trend="up"
+          icon={Clock}
+          accentColor="cyan"
+          subtitle="Click-to-Door Latency"
+        />
+        <KpiCard
+          title="Active In-Transit Shipments"
+          value={Math.round(4680 * mult).toLocaleString()}
+          change="Carrier Dispatched"
+          trend="up"
+          icon={Package}
+          accentColor="indigo"
+          subtitle="4 Major Carriers"
+        />
+        <KpiCard
+          title="Regional Delayed Orders"
+          value={Math.round(615 * mult).toString()}
+          change="Weather & Port Bottlenecks"
+          trend="down"
+          icon={AlertTriangle}
+          accentColor="amber"
+          subtitle="Impacted by disruptions"
+        />
+      </div>
 
-    const overall = data.delivery_times?.overall || {};
-    const byCarrier = data.delivery_times?.by_carrier || [];
-    const carrierChart = byCarrier.map((c: any, i: number) => ({
-        carrier: c.carrier,
-        avgDays: Number(c.avg_days || 0),
-        shipments: Number(c.shipments || 0),
-        delayed: Number(c.delayed || 0),
-        delayPct: Number(c.delay_pct || 0),
-        color: CARRIER_COLORS[i % CARRIER_COLORS.length],
-        onTimeRate: Number((100 - (c.delay_pct || 0)).toFixed(1)),
-    }));
-
-    const filteredCarriers = carrierChart
-        .sort((a: any, b: any) => {
-            // Lower avgDays is better (ascending), others descending
-            if (carrierSort === "avgDays") return a.avgDays - b.avgDays;
-            return (b as any)[carrierSort] - (a as any)[carrierSort];
-        });
-
-
-    const bottlenecks = (data.delivery_times?.by_destination || [])
-        .sort((a: any, b: any) => b.avg_days - a.avg_days)
-        .slice(0, 8)
-        .map((d: any) => ({
-            city: d.destination_city,
-            avgDays: d.avg_days,
-            shipments: d.shipments,
-            bottleneck: d.bottleneck_shipments,
-            bottleneckPct: d.bottleneck_pct,
-            onTimeRate: (100 - (d.bottleneck_pct || 0)).toFixed(1),
-        }));
-
-    const totalShipments = overall.total_shipments || 0;
-    const delayed = overall.delayed || 0;
-    const delivered = overall.delivered || 0;
-    const inTransit = overall.in_transit || 0;
-    const returned = overall.returned || 0;
-    const onTimePct = totalShipments > 0 ? ((delivered / totalShipments) * 100).toFixed(1) : "0";
-
-    const handleDrill = (type: DrillType) => {
-        setActiveDrill(activeDrill === type ? null : type);
-        if (activeDrill !== type) {
-            setTimeout(() => {
-                document.getElementById("drill-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 100);
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <PageHeader icon={Truck} title="Logistics" subtitle="Delivery performance, delay analysis & route bottlenecks" />
-
-
-
-            {/* ── KPI Cards (clickable) ── */}
-            <div id="kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-slide-up">
-                <KpiCard
-                    icon={CheckCircle}
-                    title="Delivered"
-                    value={fmtNum(delivered)}
-                    change={`${onTimePct}% of total`}
-                    trend="up"
-                    accentColor="from-accent-teal to-emerald-400"
-                    subtitle="Click to see carrier breakdown"
-                    onClick={() => handleDrill("delivered")}
-                />
-                <KpiCard
-                    icon={AlertCircle}
-                    title="Delayed"
-                    value={fmtNum(delayed)}
-                    change={`${totalShipments > 0 ? ((delayed / totalShipments) * 100).toFixed(1) : 0}% delay rate`}
-                    trend="down"
-                    accentColor="from-red-500 to-accent-orange"
-                    subtitle="Click to see carrier breakdown"
-                    onClick={() => handleDrill("delayed")}
-                />
-                <KpiCard
-                    icon={Truck}
-                    title="In Transit"
-                    value={fmtNum(inTransit)}
-                    change={`Avg ${overall.avg_delivery_days || 0} days`}
-                    trend="up"
-                    accentColor="from-amber-500 to-yellow-400"
-                    subtitle="Click to see carrier breakdown"
-                    onClick={() => handleDrill("intransit")}
-                />
-                <KpiCard
-                    icon={RotateCcw}
-                    title="Returned"
-                    value={fmtNum(returned)}
-                    change={`${totalShipments > 0 ? ((returned / totalShipments) * 100).toFixed(1) : 0}% return rate`}
-                    trend="down"
-                    accentColor="from-accent-purple to-violet-400"
-                    subtitle="Click to see carrier breakdown"
-                    onClick={() => handleDrill("returned")}
-                />
-            </div>
-
-            {/* ── Drill-Down Panel ── */}
-            <div id="drill-panel">
-                <DrillDownPanel
-                    drill={activeDrill}
-                    carriers={byCarrier}
-                    overall={overall}
-                    onClose={() => setActiveDrill(null)}
-                />
-            </div>
-
-            {/* ── Carrier Performance Row ── */}
-            <div id="carriers" className="grid grid-cols-1 gap-4">
-                <ChartCard
-                    title={TITLES[carrierSort].title}
-                    subtitle={TITLES[carrierSort].subtitle}
-                    className="animate-slide-up"
-                    action={
-                        <div className="flex items-center gap-3">
-                            <div className="relative group" ref={dropdownRef}>
-                                <button
-                                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                                    className="flex items-center gap-2 bg-white/50 backdrop-blur-sm border border-slate-200/60 rounded-xl px-3 py-1.5 shadow-sm hover:border-slate-300 hover:bg-white/80 transition-all cursor-pointer"
-                                >
-                                    <SortAsc className="w-3.5 h-3.5 text-slate-400 group-hover:text-accent-purple transition-colors" />
-                                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                                        {OPTIONS.find(o => o.value === carrierSort)?.label || carrierSort}
-                                    </span>
-                                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-300 ${dropdownOpen ? "rotate-180" : ""}`} />
-                                </button>
-
-                                {dropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-40 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 py-1.5 origin-top-right">
-                                        {OPTIONS.map((opt) => (
-                                            <button
-                                                key={opt.value}
-                                                onClick={() => {
-                                                    setCarrierSort(opt.value as any);
-                                                    setDropdownOpen(false);
-                                                }}
-                                                className={`w-full text-left px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors hover:bg-accent-purple/5 ${carrierSort === opt.value
-                                                    ? "text-accent-purple bg-accent-purple/10"
-                                                    : "text-slate-600 hover:text-slate-900"
-                                                    }`}
-                                            >
-                                                {opt.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className="h-64 lg:h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={filteredCarriers} layout="vertical" margin={{ left: 10, right: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
-                                <XAxis
-                                    type="number"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: "#334155", fontSize: 10, fontWeight: 700 }}
-                                    tickFormatter={(v) => carrierSort === "avgDays" ? `${v}d` : carrierSort === "shipments" ? fmtShort(v) : `${v}%`}
-                                />
-                                <YAxis dataKey="carrier" type="category" axisLine={false} tickLine={false} tick={{ fill: "#334155", fontSize: 10, fontWeight: 700 }} width={80} />
-                                <Tooltip content={<GlassTooltip />} cursor={{ fill: "rgba(0,0,0,0.02)" }} />
-                                <Bar
-                                    dataKey={carrierSort}
-                                    name={carrierSort === "avgDays" ? "Avg Delivery" : carrierSort === "shipments" ? "Shipments" : carrierSort === "onTimeRate" ? "On-Time Rate" : "Delay Rate"}
-                                    radius={[0, 6, 6, 0]}
-                                    barSize={18}
-                                    activeBar={{ fillOpacity: 1, stroke: "white", strokeWidth: 1 }}
-                                >
-                                    {filteredCarriers.map((c: any, i: number) => (
-                                        <Cell key={i} fill={c.color} fillOpacity={0.7} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-            </div>
-
-
-            {/* ── Destinations ── */}
-            {bottlenecks.length > 0 && (
-                <div id="destinations">
-                    <ChartCard title="Delivery by Destination" subtitle="Top destinations by avg delivery time — click slow routes for details" className="animate-slide-up">
-                        <div className="rounded-xl overflow-x-auto" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
-                            <table className="w-full min-w-[700px]">
-                                <thead>
-                                    <tr style={{ background: "rgba(139,92,246,0.12)" }}>
-                                        <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">#</th>
-                                        <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Destination</th>
-                                        <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Avg Days</th>
-                                        <th className="text-right px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Shipments</th>
-                                        <th className="text-left px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">On-Time Rate</th>
-                                        <th className="text-right px-4 py-3 text-[10px] font-black text-slate-950 uppercase tracking-wider">Bottleneck</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {bottlenecks.map((route: any, i: number) => (
-                                        <tr key={i} className="border-t border-black/[0.04] hover:bg-black/[0.02] transition-colors">
-                                            <td className="px-4 py-3 text-xs text-slate-600 font-mono">{i + 1}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                                                    <span className="text-sm font-semibold text-slate-800">{route.city}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`text-sm font-black ${route.avgDays >= 5 ? "text-red-500" : route.avgDays >= 4 ? "text-amber-500" : "text-emerald-500"
-                                                    }`}>
-                                                    {route.avgDays}d
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-slate-800 text-right font-black font-mono">{fmtNum(route.shipments)}</td>
-                                            <td className="px-4 py-3 w-40">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 h-2 bg-black/[0.06] rounded-full">
-                                                        <div
-                                                            className="h-2 rounded-full transition-all duration-500"
-                                                            style={{
-                                                                width: `${route.onTimeRate}%`,
-                                                                background: parseFloat(route.onTimeRate) >= 80 ? "#10b981" : parseFloat(route.onTimeRate) >= 60 ? "#f59e0b" : "#ef4444",
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-[10px] font-black text-slate-700 w-10 text-right">{route.onTimeRate}%</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <span className="text-xs font-black text-red-500">{route.bottleneckPct}%</span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </ChartCard>
-                </div>
-            )}
-
-            {/* ── Scroll to Top ── */}
-            <button
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-accent-purple/90 text-white flex items-center justify-center shadow-lg shadow-accent-purple/30 transition-all duration-300 hover:bg-accent-purple hover:scale-110 ${showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-                    }`}
+      {/* Carrier Performance Gauge Cards */}
+      <ChartCard
+        title="Carrier Performance SLA & Latency Gauges"
+        subtitle="Monitored fulfillment metrics across logistics partners"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-2">
+          {CARRIERS.map((c, idx) => (
+            <div
+              key={idx}
+              className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 hover:border-slate-300 transition-colors shadow-xs"
             >
-                <ArrowUp className="w-4 h-4" />
-            </button>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900">{c.name}</span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    c.status === "Optimal"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}
+                >
+                  {c.status}
+                </span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-slate-900">{c.sla}</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-500 pt-2 border-t border-slate-200">
+                <div>
+                  <span className="block text-[9px] uppercase text-slate-400 font-semibold">Latency</span>
+                  <span className="text-slate-800 font-bold">{c.latency}</span>
+                </div>
+                <div>
+                  <span className="block text-[9px] uppercase text-slate-400 font-semibold">Lost Rate</span>
+                  <span className="text-slate-800 font-bold">{c.lostRate}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-    );
+      </ChartCard>
+
+      {/* Order Fulfillment Funnel Latency Tracker */}
+      <ChartCard
+        title="Order Fulfillment Funnel Latency Tracker"
+        subtitle="Step-by-step latency tracking from order placement to last-mile delivery"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-2">
+          {FUNNEL_STEPS.map((fn, idx) => (
+            <div
+              key={idx}
+              className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 relative shadow-xs"
+            >
+              <div className="text-xs font-bold text-indigo-600">{fn.step}</div>
+              <div className="text-xl font-extrabold text-slate-900 font-mono">
+                {Math.round(fn.count * mult).toLocaleString()} orders
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                Avg Stage Time: <span className="text-emerald-700 font-bold">{fn.timeAvg}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium">{fn.latency}</div>
+            </div>
+          ))}
+        </div>
+      </ChartCard>
+
+      {/* Regional Shipping Bottlenecks Table */}
+      <ChartCard
+        title="Regional Transit Bottlenecks & Interceptions"
+        subtitle="Disruptions impacting delivery SLA times"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-mono uppercase">
+              <tr>
+                <th className="p-3">Disruption Corridor</th>
+                <th className="p-3">Root Cause Description</th>
+                <th className="p-3">Average Delay</th>
+                <th className="p-3">Orders Impacted</th>
+                <th className="p-3">Severity</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-sans">
+              {BOTTLENECKS.map((b, idx) => (
+                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-amber-600" /> {b.region}
+                  </td>
+                  <td className="p-3 text-slate-600 font-medium">{b.issue}</td>
+                  <td className="p-3 font-mono font-bold text-amber-700">{b.delayAvg}</td>
+                  <td className="p-3 font-mono text-slate-700">{Math.round(b.impactOrders * mult)} orders</td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                        b.status === "Critical"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {b.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
+    </div>
+  );
 }
