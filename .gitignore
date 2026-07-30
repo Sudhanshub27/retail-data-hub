@@ -38,13 +38,3 @@ package-lock.json
 *.log
 *.tmp
 .env
-
-# ─── Generated Data (runtime artifacts) ───────────────
-# Regenerate with: ./scripts/generation.sh && ./scripts/ingestion.sh etc.
-data/raw/
-data/bronze/
-data/silver/
-data/gold/
-data/analytics/
-data/logs/
-data/data_quality_report.json
