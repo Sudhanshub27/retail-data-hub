@@ -9,23 +9,62 @@
 * **Frontend Dashboard (Vercel)**: [Retail Data Hub on Vercel](https://retail-data-hub.vercel.app)
 * **Backend API (Railway)**: [Retail Analytics FastAPI on Railway](https://retail-data-hub-production.up.railway.app)
 
-> ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Railway's serverless environment. If the server has been idle, the initial API call or query may take **15–30 seconds** to wake up the backend instance. Subsequent requests will execute with zero latency.
+> ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Railway's serverless environment. If the backend has been idle, the initial API call or query may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
 
 ---
 
-## 🎨 Visual Identity & Design System
+## 🛠️ Complete Tech Stack Architecture
 
-The platform features an executive-grade **vibrant light aesthetic** (`bg-slate-50` / `bg-white`) optimized for data density, legibility, and executive presentations:
-
-* **Typography**: Inter / Outfit modern sans-serif hierarchy.
-* **Palette**: Slate-900 typography with vibrant semantic accents (Indigo for revenue, Emerald for SLA compliance, Rose for fraud alerts, Amber for stockout risks).
-* **Interactivity**: Micro-animations powered by **Framer Motion**, interactive **Recharts** visualizations, and customized modal dialogs.
+| Layer | Technologies & Frameworks | Description |
+| :--- | :--- | :--- |
+| **Frontend UI/UX** | Next.js 14 (App Router), TypeScript, Tailwind CSS, Framer Motion, Recharts, Lucide Icons | High-density executive interface with responsive charts, micro-animations, slate/vibrant themes, and client context management. |
+| **Backend API** | FastAPI, Uvicorn, Pydantic v2, WebSockets | Asynchronous RESTful API framework serving live KPI data, chat engines, and streaming WebSocket transaction feeds. |
+| **OLAP Engine & Storage** | DuckDB, Apache Parquet | In-process analytical database (OLAP) processing millions of rows in milliseconds using columnar Parquet storage. |
+| **Artificial Intelligence** | Google Gemini AI (`gemini-1.5-flash`, `gemini-1.5-pro`) | Executive AI Copilot generating natural language insights, dynamic DuckDB SQL queries, and Recharts JSON payloads. |
+| **Machine Learning** | PyTorch, Scikit-Learn, mlxtend | 2-Layer LSTM Neural Model for 30-day demand prediction; Apriori algorithm for market basket association mining; IQR/Z-score anomaly detectors. |
+| **DevOps & Infrastructure** | Docker, Railway, Vercel, Shell (Bash) | Containerized build pipelines, automated synthetic data generators, and cloud hosting for frontend & backend services. |
 
 ---
 
-## 🏗️ Technical Architecture (Medallion Pattern)
+## 🔌 Complete REST API & WebSocket Reference
 
-The core data processing pipeline implements a **Medallion Architecture** using **DuckDB** for in-process OLAP speed and **Apache Parquet** for columnar compression.
+### 🟢 Core Analytics Endpoints
+
+| Method | Endpoint | Description | Query Params / Body | Sample Output Key |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/health` | System health monitor & analytical file validation | None | `{"status": "ok", "data_files": {...}}` |
+| `GET` | `/api/summary` | Executive summary KPIs & Gemini AI business insights | None | `{"kpis": {...}, "ai_summary": "..."}` |
+| `GET` | `/api/commercial` | Revenue totals, city performance, category sales, monthly trends | None | `{"revenue": {...}, "city_sales": [...]}` |
+| `GET` | `/api/operations` | Logistics SLA compliance, carrier duration, stockout rates | None | `{"stockout_rate": {...}, "delivery_times": {...}}` |
+| `GET` | `/api/customer` | Customer health, RFM segmentation, retention, CLV | None | `{"rfm": {...}, "clv": {...}}` |
+| `GET` | `/api/forecast` | PyTorch 30-day neural LSTM category demand predictions | None | `{"total_30d_predicted_revenue": 1420000, ...}` |
+| `GET` | `/api/market-basket` | Association rule mining (`support`, `confidence`, `lift`) | None | `{"rules": [{"antecedents": [...], "lift": 2.4}]}` |
+| `GET` | `/api/quality` | Data quality checks, null/duplicate counts, quarantine log | None | `{"pass_rate": 99.2, "quarantined_rows": 525}` |
+| `GET` | `/api/datagrid` | Paginated raw transactions with column search & filters | `page=1&limit=50&search=Mumbai` | `{"data": [...], "total_pages": 42}` |
+
+---
+
+### 🤖 AI Copilot & Automated Alerting Endpoints
+
+| Method | Endpoint | Description | Request Payload | Response Schema |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/chat` | AI Executive Assistant (Gemini + DuckDB SQL Generator) | `{"message": "Top revenue SKUs with return rate > 10%"}` | `{"text": "...", "sqlQuery": "...", "data_type": "table", "tableData": {...}}` |
+| `GET` | `/api/alerts` | Fetch active trigger rules & webhook integrations | None | `{"rules": [...], "slack_webhook": "...", "pagerduty_policy": "..."}` |
+| `POST` | `/api/alerts/save` | Save updated trigger rules & webhook channels to disk | `{"rules": [...], "slack_webhook": "..."}` | `{"status": "success", "message": "Saved 3 rules"}` |
+| `POST` | `/api/alerts/test` | Trigger live test notification dispatch | `{"target": "Slack", "rule_name": "Stockout Risk"}` | `{"status": "success", "delivered": true}` |
+
+---
+
+### ⚡ Live WebSockets Stream
+
+| Protocol | Endpoint | Direction | Description |
+| :--- | :--- | :--- | :--- |
+| `WS` | `/ws/live` | Server → Client | Streams real-time POS transaction events, rolling revenue, anomaly alerts, and store activity to the dashboard UI. |
+| `WS` | `/ws/simulator` | Simulator → Server | Accepts raw JSON transaction payloads from the background simulator process and broadcasts to connected clients. |
+
+---
+
+## 🏗️ Medallion Architecture & Data Pipeline
 
 ```
        ┌────────────────┐
@@ -53,42 +92,20 @@ The core data processing pipeline implements a **Medallion Architecture** using 
  └───────────────────────────┘
 ```
 
-1. **Bronze Layer**: Schema enforcement, type coercion, and Parquet storage.
-2. **Silver Layer**: Data cleansing, quality quarantine (`rejected_rows`), and POS + Web unified transaction merge.
-3. **Gold Layer**: Dimensional star-schema modelling:
+1. **Raw Layer**: Synthetic transaction generators producing POS CSVs, Web Order JSONs, Warehouse Inventory, and Shipments.
+2. **Bronze Layer**: Schema enforcement, data validation, and conversion to Apache Parquet format.
+3. **Silver Layer**: Data cleaning, deduplication, quarantine of malformed rows (`rejected_rows.parquet`), and unified store/web sales merging.
+4. **Gold Layer**: Star-schema relational modelling:
    * `fact_sales`: Transactional grain with revenue, margins, and customer keys.
-   * `dim_customer`: **SCD Type 2** tracking customer address/city changes over time with surrogate keys.
-   * `dim_product`, `dim_store`, `dim_date`: Comprehensive dimensional analytical tables.
-4. **Analytics Layer**: Automated calculation of Commercial KPIs, Operations metrics, RFM Customer Segments, and Demand Forecasts.
+   * `dim_customer`: **SCD Type 2** tracking customer address and city changes over time with surrogate keys.
+   * `dim_product`, `dim_store`, `dim_date`: Analytics-ready dimension tables.
+5. **Analytics & AI**: High-performance DuckDB OLAP queries, PyTorch demand forecasting, and Gemini AI natural language translation.
 
 ---
 
-## 📊 Analytical Modules & Capabilities
+## 💻 Local Setup & Data Pipeline Execution
 
-The platform comprises **13 specialized dashboard pages**:
-
-| Module | Features & Capabilities |
-| :--- | :--- |
-| **Executive Overview** | Macro commercial health, total revenue, transaction counts, and channel breakdown. |
-| **Sales Analytics** | Regional sales distribution across 50+ stores, top SKUs, and category revenue. |
-| **Demand Forecast** | AI-powered 30-day demand prediction using a **PyTorch Neural LSTM** model. |
-| **Customer Intelligence** | RFM Segmentation (Champions, At Risk, Hibernating), CLV, and retention rates. |
-| **Inventory Health** | Stockout probability radar, turnover ratios, and automated Purchase Order reorders. |
-| **Logistics & Delivery** | Carrier SLA performance, delivery bottlenecks, and transit duration tracking. |
-| **Fraud Detection** | Rule-based velocity scoring engine isolating compromised orders and high-risk IPs. |
-| **Anomaly Detection** | Statistical Z-Score & IQR outlier detection identifying revenue and transaction spikes. |
-| **Market Basket Mining** | Association rule mining using the **Apriori Algorithm** (`support`, `confidence`, `lift`). |
-| **Data Quality & DAG** | Real-time SLA monitors, pipeline data quality checks, and interactive DAG lineage flow. |
-| **Data Explorer** | High-density Datagrid with pagination, column search, and instant CSV/JSON exports. |
-| **Live Operations** | Real-time WebSocket stream (`/ws/live`) simulating live store POS transactions. |
-| **AI Copilot & SQL** | Gemini AI natural language translator rendering live SQL queries & Recharts graphs. |
-| **Automated Alerts** | Configurable notification trigger rules for Slack, PagerDuty, Email, and Webhooks. |
-
----
-
-## 💻 Local Setup & Data Generation Guide
-
-> 📌 **Data Generation Note**: To mirror enterprise scale without committing multi-gigabyte files to git, **all data is generated locally using synthetic data generation scripts**. Follow the steps below to populate your local DuckDB database and analytics layers.
+> 📌 **Synthetic Data Note**: To mirror enterprise scale without committing multi-gigabyte data files to git, **all data is generated locally using synthetic data scripts**.
 
 ### 1. Prerequisites
 * **Python 3.9+**
@@ -96,9 +113,9 @@ The platform comprises **13 specialized dashboard pages**:
 
 ---
 
-### 2. Installation & Setup Steps
+### 2. Installation Steps
 
-#### Step A: Clone Repository & Setup Virtual Environment
+#### Step A: Clone & Environment Setup
 ```bash
 git clone https://github.com/Sudhanshub27/retail-data-hub.git
 cd retail-data-hub
@@ -107,12 +124,12 @@ cd retail-data-hub
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install Python backend dependencies
+# Install backend dependencies
 pip install -r requirements.txt
 ```
 
-#### Step B: Run Data Generation & Pipeline Scripts
-Execute the automated bash scripts to generate synthetic raw data and process it through the Medallion architecture:
+#### Step B: Generate Data & Run Medallion Pipeline
+Run the automated pipeline scripts in sequence to populate raw datasets and process them into the Gold analytics layer:
 
 ```bash
 # 1. Generate Raw POS sales, Web orders, Warehouse inventory, & Shipments
@@ -132,14 +149,14 @@ bash scripts/forecast.sh
 bash scripts/quality_checks.sh
 ```
 
-#### Step C: Launch FastAPI Backend Server
+#### Step C: Launch Backend API Server
 ```bash
 # Start FastAPI backend server on http://localhost:8000
 bash scripts/api.sh
 ```
-> The API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
+> Interactive API Swagger UI available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-#### Step D: Launch Next.js Frontend Dashboard
+#### Step D: Launch Frontend Dashboard
 Open a new terminal window:
 ```bash
 cd dashboard
@@ -150,7 +167,7 @@ npm install
 # Start Next.js development server
 npm run dev
 ```
-> Open your browser and navigate to [http://localhost:3000](http://localhost:3000).
+> Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
@@ -158,18 +175,18 @@ npm run dev
 
 ```
 retail-data-hub/
+├── Dockerfile                  # Production Docker container build for Railway
+├── railway.json                # Railway deployment configuration
+├── README.md                   # Comprehensive project documentation
+├── requirements.txt            # Python dependencies
 ├── data/                       # Local DuckDB, Parquet, and Analytics JSON (Git Ignored)
-│   ├── raw/                    # Generated POS CSVs, Web JSONs, Inventory CSVs
-│   ├── bronze/                 # Validated Parquet tables
-│   ├── silver/                 # Cleaned unified sales & warehouse tables
-│   ├── gold/                   # Star Schema fact_sales & dimension tables
-│   └── analytics/              # Computed KPI summary JSON files
 ├── dashboard/                  # Next.js 14 App Router Frontend
-│   ├── public/                 # Branding assets (logo.png)
+│   ├── vercel.json             # Vercel deployment configuration
+│   ├── public/                 # Branding logo and assets
 │   └── src/
-│       ├── app/                # Route pages (13 analytical modules)
+│       ├── app/                # 13 Analytical module route pages
 │       ├── components/         # TopHeader, Sidebar, AlertConfigModal, Recharts components
-│       └── context/            # StoreContext for multi-store selection
+│       └── context/            # StoreContext state management
 ├── src/                        # Python Analytics & Machine Learning Pipeline
 │   ├── analytics/              # Commercial, Operations, Customer KPI scripts
 │   ├── api/                    # FastAPI backend (`api.py`) & AI Copilot (`chat_engine.py`)
@@ -178,9 +195,7 @@ retail-data-hub/
 │   ├── ml/                     # PyTorch LSTM Demand Forecasting
 │   ├── quality/                # Automated Data Quality check suites
 │   └── transformation/         # Bronze → Silver → Gold ETL transformers
-├── scripts/                    # Terminal execution scripts (.sh)
-├── requirements.txt            # Python dependencies
-└── README.md                   # Project documentation
+└── scripts/                    # Automation bash execution scripts
 ```
 
 ---
