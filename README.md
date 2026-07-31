@@ -7,9 +7,9 @@
 ## 🌐 Live Deployments
 
 * **Frontend Dashboard (Vercel)**: [Retail Data Hub on Vercel](https://retail-data-hub.vercel.app)
-* **Backend API (Railway)**: [Retail Analytics FastAPI on Railway](https://retail-data-hub-production.up.railway.app)
+* **Backend API (Render)**: [Retail Analytics FastAPI on Render](https://retail-data-hub-api.onrender.com)
 
-> ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Railway's serverless environment. If the backend has been idle, the initial API call or query may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
+> ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Render's cloud infrastructure. If the backend has been idle for 15+ minutes, Render spins down the free instance. The initial API request may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
 
 ---
 
@@ -22,7 +22,7 @@
 | **OLAP Engine & Storage** | DuckDB, Apache Parquet | In-process analytical database (OLAP) processing millions of rows in milliseconds using columnar Parquet storage. |
 | **Artificial Intelligence** | Google Gemini AI (`gemini-1.5-flash`, `gemini-1.5-pro`) | Executive AI Copilot generating natural language insights, dynamic DuckDB SQL queries, and Recharts JSON payloads. |
 | **Machine Learning** | PyTorch, Scikit-Learn, mlxtend | 2-Layer LSTM Neural Model for 30-day demand prediction; Apriori algorithm for market basket association mining; IQR/Z-score anomaly detectors. |
-| **DevOps & Infrastructure** | Docker, Railway, Vercel, Shell (Bash) | Containerized build pipelines, automated synthetic data generators, and cloud hosting for frontend & backend services. |
+| **DevOps & Infrastructure** | Render, Vercel, Docker, Shell (Bash) | Cloud deployment pipeline with automated synthetic data generators and host services for frontend & backend applications. |
 
 ---
 
@@ -175,8 +175,8 @@ npm run dev
 
 ```
 retail-data-hub/
-├── Dockerfile                  # Production Docker container build for Railway
-├── railway.json                # Railway deployment configuration
+├── render.yaml                 # Render cloud deployment configuration
+├── Dockerfile                  # Production Docker container build
 ├── README.md                   # Comprehensive project documentation
 ├── requirements.txt            # Python dependencies
 ├── data/                       # Local DuckDB, Parquet, and Analytics JSON (Git Ignored)
