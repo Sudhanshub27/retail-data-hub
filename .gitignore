@@ -16,6 +16,9 @@ venv/
 env/
 ENV/
 
+# ─── Generated Data Files & Directories ─────────────────
+data/
+
 # ─── IDE / Editor ─────────────────────────────────────
 .vscode/
 .idea/
@@ -29,8 +32,11 @@ ENV/
 
 # ─── Node.js / Next.js (Dashboard) ────────────────────
 node_modules/
+dashboard/node_modules/
 .next/
+dashboard/.next/
 out/
+dashboard/out/
 dashboard/.env.local
 package-lock.json
 

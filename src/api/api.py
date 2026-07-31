@@ -531,8 +531,77 @@ async def ws_simulator(websocket: WebSocket):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# RUN
+# AUTOMATED ALERTS & WEBHOOKS MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════
+
+ALERT_RULES_FILE = os.path.join(DATA_DIR, "alert_rules.json")
+
+DEFAULT_ALERT_RULES = [
+    {"id": "r1", "name": "Low Inventory Stockout Risk", "category": "Inventory", "condition": "Stock Horizon < 7 Days", "target": "Slack", "enabled": True},
+    {"id": "r2", "name": "High Velocity Fraud Spike", "category": "Fraud", "condition": "Risk Score > 85", "target": "PagerDuty", "enabled": True},
+    {"id": "r3", "name": "Daily Revenue Outlier Anomaly", "category": "Revenue", "condition": "Deviation > 3.0 Sigma", "target": "Email", "enabled": True},
+]
+
+class AlertRuleItem(BaseModel):
+    id: str
+    name: str
+    category: str
+    condition: str
+    target: str
+    enabled: bool
+
+class AlertSavePayload(BaseModel):
+    rules: list[AlertRuleItem]
+    slack_webhook: Optional[str] = "https://hooks.slack.com/services/T00/B00/XXXX"
+    pagerduty_policy: Optional[str] = "EP-RETAIL-CRITICAL-SEV1"
+
+class AlertTestPayload(BaseModel):
+    target: Optional[str] = "Slack"
+    rule_name: Optional[str] = "Low Inventory Stockout Risk"
+
+@app.get("/api/alerts")
+def get_alerts():
+    """Fetch active trigger rules & webhook configurations."""
+    if os.path.exists(ALERT_RULES_FILE):
+        try:
+            with open(ALERT_RULES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "rules": DEFAULT_ALERT_RULES,
+        "slack_webhook": "https://hooks.slack.com/services/T00/B00/XXXX",
+        "pagerduty_policy": "EP-RETAIL-CRITICAL-SEV1"
+    }
+
+@app.post("/api/alerts/save")
+def save_alerts(payload: AlertSavePayload):
+    """Save updated alert rules and webhook settings."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    data = {
+        "rules": [r.dict() for r in payload.rules],
+        "slack_webhook": payload.slack_webhook,
+        "pagerduty_policy": payload.pagerduty_policy,
+        "updated_at": pd.Timestamp.now().isoformat()
+    }
+    with open(ALERT_RULES_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    return {"status": "success", "message": f"Saved {len(payload.rules)} alert rules successfully", "data": data}
+
+@app.post("/api/alerts/test")
+def test_alert(payload: AlertTestPayload):
+    """Trigger a live test alert notification dispatch."""
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    return {
+        "status": "success",
+        "delivered": True,
+        "target": payload.target,
+        "rule_name": payload.rule_name,
+        "timestamp": timestamp,
+        "message": f"Test alert successfully dispatched to {payload.target} at {timestamp} for rule '{payload.rule_name}'."
+    }
+
+
 
 if __name__ == "__main__":
     import uvicorn

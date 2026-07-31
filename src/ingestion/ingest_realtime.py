@@ -28,7 +28,7 @@ BRONZE_DIR = PROJECT_ROOT / "data" / "bronze"
 
 # ── Simulated Stream Reader ─────────────────────────────────────
 
-def read_json_stream(file_path: Path, batch_size: int = 5):
+def read_json_stream(file_path: Path, batch_size: int = 1000):
     """
     Simulate streaming by reading a JSON array and yielding
     records in micro-batches of `batch_size`.
@@ -41,8 +41,8 @@ def read_json_stream(file_path: Path, batch_size: int = 5):
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         logger.info(f"   ↳ Received micro-batch {i // batch_size + 1} ({len(batch)} records)")
-        # Simulate network latency
-        time.sleep(0.1)
+        # Micro latency
+        time.sleep(0.001)
         yield batch
 
 
@@ -53,7 +53,7 @@ def ingest_json_stream(
     file_name: str = "web_orders.json",
     schema_name: str = "web_orders",
     output_subdir: str = "web_orders",
-    batch_size: int = 5,
+    batch_size: int = 1000,
 ) -> dict:
     """
     Read a JSON file in micro-batches (simulating streaming),
