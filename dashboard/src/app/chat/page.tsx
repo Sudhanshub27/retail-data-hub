@@ -75,11 +75,11 @@ WHERE margin_pct < 0.15 AND return_rate > 0.08
 ORDER BY return_rate DESC
 LIMIT 5;`,
     chartData: [
-      { sku: "SKU-9901", margin: 12.4, returnRate: 14.2 },
-      { sku: "SKU-4012", margin: 10.8, returnRate: 11.5 },
-      { sku: "SKU-1829", margin: 14.1, returnRate: 9.8 },
-      { sku: "SKU-7721", margin: 13.5, returnRate: 8.9 },
-      { sku: "SKU-2041", margin: 11.2, returnRate: 8.2 },
+      { name: "SKU-9901", value: 14.2 },
+      { name: "SKU-4012", value: 11.5 },
+      { name: "SKU-1829", value: 9.8 },
+      { name: "SKU-7721", value: 8.9 },
+      { name: "SKU-2041", value: 8.2 },
     ],
     tableData: {
       headers: ["SKU Code", "Category", "Margin %", "Return Rate %"],
@@ -125,17 +125,17 @@ WHERE i.store_id = '${selectedStore.id}'
 GROUP BY category
 ORDER BY reorder_shortfall DESC;`,
         chartData: [
-          { category: "Electronics", demand: Math.round(14500 * mult), stock: Math.round(11200 * mult) },
-          { category: "Apparel", demand: Math.round(22000 * mult), stock: Math.round(19500 * mult) },
-          { category: "Home & Garden", demand: Math.round(9800 * mult), stock: Math.round(6400 * mult) },
-          { category: "Footwear", demand: Math.round(16300 * mult), stock: Math.round(12100 * mult) },
+          { name: "Electronics", value: Math.round(14500 * mult) },
+          { name: "Apparel", value: Math.round(22000 * mult) },
+          { name: "Home Goods", value: Math.round(9800 * mult) },
+          { name: "Footwear", value: Math.round(16300 * mult) },
         ],
         tableData: {
           headers: ["Product Category", "In-Stock Units", "Q4 Demand", "Shortfall Alert"],
           rows: [
             ["Electronics", Math.round(11200 * mult), Math.round(14500 * mult), `+${Math.round(3300 * mult)} units`],
             ["Apparel", Math.round(19500 * mult), Math.round(22000 * mult), `+${Math.round(2500 * mult)} units`],
-            ["Home & Garden", Math.round(6400 * mult), Math.round(9800 * mult), `+${Math.round(3400 * mult)} units`],
+            ["Home Goods", Math.round(6400 * mult), Math.round(9800 * mult), `+${Math.round(3400 * mult)} units`],
             ["Footwear", Math.round(12100 * mult), Math.round(16300 * mult), `+${Math.round(4200 * mult)} units`],
           ],
         },
@@ -158,10 +158,10 @@ WHERE recency_days > 60 AND rfm_segment IN ('At Risk', 'About To Sleep', 'Hibern
 GROUP BY rfm_segment
 ORDER BY avg_clv DESC;`,
         chartData: [
-          { segment: "At Risk", count: Math.round(1420 * mult), churnProb: 74 },
-          { segment: "About To Sleep", count: Math.round(2100 * mult), churnProb: 58 },
-          { segment: "Hibernating", count: Math.round(3890 * mult), churnProb: 89 },
-          { segment: "Lost Champions", count: Math.round(450 * mult), churnProb: 92 },
+          { name: "At Risk", value: Math.round(1420 * mult) },
+          { name: "About To Sleep", value: Math.round(2100 * mult) },
+          { name: "Hibernating", value: Math.round(3890 * mult) },
+          { name: "Lost Champions", value: Math.round(450 * mult) },
         ],
         tableData: {
           headers: ["RFM Segment", "Customer Count", "Avg Days Inactive", "Est. Revenue At Risk"],
@@ -170,39 +170,6 @@ ORDER BY avg_clv DESC;`,
             ["About To Sleep", Math.round(2100 * mult), "45 days", `$${Math.round(158000 * mult)}`],
             ["Hibernating", Math.round(3890 * mult), "112 days", `$${Math.round(380000 * mult)}`],
             ["Lost Champions", Math.round(450 * mult), "140 days", `$${Math.round(185000 * mult)}`],
-          ],
-        },
-        timestamp: ts,
-      };
-    }
-
-    if (q.includes("velocity") || q.includes("hours") || q.includes("peak") || q.includes("sales")) {
-      return {
-        id: `a-${Date.now()}`,
-        sender: "ai",
-        text: `Analyzed hourly sales velocity and peak order distribution for ${storeName}:`,
-        sqlQuery: `SELECT 
-  EXTRACT(HOUR FROM transaction_timestamp) AS order_hour,
-  COUNT(transaction_id) AS order_count,
-  ROUND(SUM(net_amount), 2) AS total_hourly_revenue
-FROM gold.fact_sales
-WHERE store_id = '${selectedStore.id}'
-GROUP BY order_hour
-ORDER BY total_hourly_revenue DESC;`,
-        chartData: [
-          { hour: "10:00 AM", sales: Math.round(42000 * mult) },
-          { hour: "01:00 PM", sales: Math.round(68000 * mult) },
-          { hour: "04:00 PM", sales: Math.round(59000 * mult) },
-          { hour: "07:00 PM", sales: Math.round(84000 * mult) },
-          { hour: "09:00 PM", sales: Math.round(51000 * mult) },
-        ],
-        tableData: {
-          headers: ["Hour Slot", "Orders Processed", "Hourly Revenue", "Velocity Status"],
-          rows: [
-            ["07:00 PM - 08:00 PM", Math.round(482 * mult), `$${Math.round(84000 * mult)}`, "PEAK"],
-            ["01:00 PM - 02:00 PM", Math.round(390 * mult), `$${Math.round(68000 * mult)}`, "HIGH"],
-            ["04:00 PM - 05:00 PM", Math.round(345 * mult), `$${Math.round(59000 * mult)}`, "HIGH"],
-            ["09:00 PM - 10:00 PM", Math.round(290 * mult), `$${Math.round(51000 * mult)}`, "MODERATE"],
           ],
         },
         timestamp: ts,
@@ -224,10 +191,10 @@ WHERE store_id = '${selectedStore.id}'
 GROUP BY category
 ORDER BY total_revenue DESC;`,
       chartData: [
-        { category: "Electronics", sales: Math.round(184000 * mult) },
-        { category: "Apparel", sales: Math.round(142000 * mult) },
-        { category: "Home Goods", sales: Math.round(98000 * mult) },
-        { category: "Beauty", sales: Math.round(76000 * mult) },
+        { name: "Electronics", value: Math.round(184000 * mult) },
+        { name: "Apparel", value: Math.round(142000 * mult) },
+        { name: "Home Goods", value: Math.round(98000 * mult) },
+        { name: "Beauty", value: Math.round(76000 * mult) },
       ],
       tableData: {
         headers: ["Category", "Total Revenue", "Order Volume", "Avg Basket Items"],
@@ -258,7 +225,6 @@ ORDER BY total_revenue DESC;`,
     setIsLoading(true);
 
     try {
-      // Attempt backend API fetch
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -267,23 +233,41 @@ ORDER BY total_revenue DESC;`,
 
       if (res.ok) {
         const json = await res.json();
+
+        // Extract Chart Data Array
+        let extractedChartData: any[] | undefined = undefined;
+        if (Array.isArray(json.chartData)) {
+          extractedChartData = json.chartData;
+        } else if (Array.isArray(json.data)) {
+          extractedChartData = json.data;
+        } else if (json.data && Array.isArray(json.data.data)) {
+          extractedChartData = json.data.data;
+        }
+
+        // Extract Table Data Object
+        let extractedTableData: TableData | undefined = undefined;
+        if (json.tableData && Array.isArray(json.tableData.headers) && Array.isArray(json.tableData.rows)) {
+          extractedTableData = json.tableData;
+        } else if (json.data && Array.isArray(json.data.headers) && Array.isArray(json.data.rows)) {
+          extractedTableData = json.data;
+        }
+
         const aiMsg: ChatMessage = {
           id: `a-${Date.now()}`,
           sender: "ai",
-          text: json.text || json.message || `Query returned matching analytics from DuckDB:`,
+          text: json.text || json.message || "Executed analytical query against DuckDB Gold layer:",
           sqlQuery: json.sqlQuery || json.sql || undefined,
-          chartData: json.chartData || (json.data_type === "chart" ? json.data?.data : undefined),
-          tableData: json.tableData || (json.data_type === "table" ? json.data : undefined),
+          chartData: extractedChartData,
+          tableData: extractedTableData,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         };
+
         setMessages((prev) => [...prev, aiMsg]);
       } else {
-        // Fallback to local intelligent dynamic engine
         const fallbackMsg = generateContextualResponse(queryText);
         setMessages((prev) => [...prev, fallbackMsg]);
       }
     } catch {
-      // Network/offline fallback to local dynamic engine
       const fallbackMsg = generateContextualResponse(queryText);
       setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
@@ -404,50 +388,52 @@ ORDER BY total_revenue DESC;`,
               )}
 
               {/* Recharts Visualizer */}
-              {msg.chartData && (
-                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
-                    <BarChart2 className="w-3.5 h-3.5" /> Auto-Rendered Visualizer
+              {msg.chartData && msg.chartData.length > 0 && (() => {
+                const first = msg.chartData[0] || {};
+                const keys = Object.keys(first);
+                const xKey =
+                  first.name !== undefined ? "name" :
+                  first.sku !== undefined ? "sku" :
+                  first.category !== undefined ? "category" :
+                  first.segment !== undefined ? "segment" :
+                  first.hour !== undefined ? "hour" :
+                  keys[0] || "name";
+
+                const yKey =
+                  first.value !== undefined ? "value" :
+                  first.sales !== undefined ? "sales" :
+                  first.returnRate !== undefined ? "returnRate" :
+                  first.demand !== undefined ? "demand" :
+                  first.count !== undefined ? "count" :
+                  keys[1] || "value";
+
+                return (
+                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
+                      <BarChart2 className="w-3.5 h-3.5" /> Auto-Rendered Visualizer
+                    </div>
+                    <div className="h-44 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={msg.chartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis
+                            dataKey={xKey}
+                            stroke="#64748b"
+                            tick={{ fill: "#475569", fontSize: 10 }}
+                          />
+                          <YAxis stroke="#64748b" tick={{ fill: "#475569", fontSize: 10 }} />
+                          <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }} />
+                          <Bar
+                            dataKey={yKey}
+                            fill="#4f46e5"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                  <div className="h-44 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={msg.chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey={
-                            msg.chartData[0].sku
-                              ? "sku"
-                              : msg.chartData[0].category
-                              ? "category"
-                              : msg.chartData[0].segment
-                              ? "segment"
-                              : msg.chartData[0].hour
-                              ? "hour"
-                              : "store"
-                          }
-                          stroke="#64748b"
-                          tick={{ fill: "#475569", fontSize: 10 }}
-                        />
-                        <YAxis stroke="#64748b" tick={{ fill: "#475569", fontSize: 10 }} />
-                        <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }} />
-                        <Bar
-                          dataKey={
-                            msg.chartData[0].returnRate
-                              ? "returnRate"
-                              : msg.chartData[0].demand
-                              ? "demand"
-                              : msg.chartData[0].count
-                              ? "count"
-                              : "sales"
-                          }
-                          fill="#4f46e5"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         ))}
