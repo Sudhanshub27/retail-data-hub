@@ -7,7 +7,7 @@
 ## 🌐 Live Deployments
 
 * **Frontend Dashboard (Vercel)**: [Retail Data Hub on Vercel](https://retail-data-hub.vercel.app)
-* **Backend API (Render)**: [Retail Analytics FastAPI on Render](https://retail-data-hub-api.onrender.com)
+* **Backend API (Render)**: [Retail Analytics FastAPI on Render](https://retail-data-hub-1n2u.onrender.com)
 
 > ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Render's cloud infrastructure. If the backend has been idle for 15+ minutes, Render spins down the free instance. The initial API request may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
 
