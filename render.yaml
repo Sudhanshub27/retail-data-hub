@@ -1,9 +1,12 @@
 services:
   - type: web
     name: retail-data-hub-api
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: python
+    buildCommand: "pip install -r requirements.txt && bash scripts/generation.sh && python3 src/ingestion/ingest_batch.py && python3 src/ingestion/ingest_realtime.py && python3 src/transformation/bronze_to_silver.py && python3 src/transformation/silver_to_gold.py && python3 src/analytics/commercial_kpis.py && python3 src/analytics/operations_kpis.py && python3 src/analytics/customer_kpis.py && python3 src/analytics/executive_summary.py"
+    startCommand: "uvicorn src.api.api:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /api/health
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: PYTHONPATH
+        value: .
