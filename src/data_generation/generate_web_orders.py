@@ -52,7 +52,7 @@ PAYMENT_WEIGHTS = [0.40, 0.25, 0.20, 0.10, 0.05]
 BASE_ORDERS_PER_DAY = 20   # ~20 orders/day × 762 days ≈ 15,000 orders
 records = []
 
-print("🌐 Generating web orders (flat JSON)…")
+print("[INFO] Generating web orders (flat JSON)…")
 
 order_counter = 0
 
@@ -144,7 +144,7 @@ with open(out_path, "w", encoding="utf-8") as f:
 unique_customers = len({r["customer_id"] for r in records if r["customer_id"]})
 payment_counts = pd.Series([r["payment_method"] for r in records]).value_counts()
 
-print(f"\n✅ Web orders saved → {out_path}")
+print(f"\n[OK] Web orders saved → {out_path}")
 print(f"   Records    : {len(records):,}")
 print(f"   Customers  : {unique_customers:,}")
 print(f"   Date range : {records[0]['order_date'][:10]} → {records[-1]['order_date'][:10]}")

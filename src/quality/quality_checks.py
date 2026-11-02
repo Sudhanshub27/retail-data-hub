@@ -44,9 +44,9 @@ def load_bronze():
     for name, path in paths.items():
         if os.path.exists(path):
             datasets[name] = pd.read_parquet(path)
-            print(f"  ✓ Loaded {name}: {len(datasets[name]):,} rows")
+            print(f"  [OK] Loaded {name}: {len(datasets[name]):,} rows")
         else:
-            print(f"  ✗ Missing: {path}")
+            print(f"  [ERROR] Missing: {path}")
 
     return datasets
 
@@ -375,26 +375,26 @@ ALL_CHECKS = [
 def run_all_checks():
     """Run all 7 DQ checks and save report."""
     print("=" * 60)
-    print("🔍 DATA QUALITY FRAMEWORK — 7 Automated Checks")
+    print("DATA QUALITY FRAMEWORK — 7 Automated Checks")
     print("=" * 60)
 
     # Load data
-    print("\n📂 Loading Bronze layer data …")
+    print("\n[INFO] Loading Bronze layer data …")
     datasets = load_bronze()
 
     if not datasets:
-        print("✗ No Bronze data found. Run ingestion first.")
+        print("[ERROR] No Bronze data found. Run ingestion first.")
         return
 
     # Run checks
-    print(f"\n🏃 Running {len(ALL_CHECKS)} checks …\n")
+    print(f"\n[INFO] Running {len(ALL_CHECKS)} checks …\n")
     results = []
 
     for check_fn in ALL_CHECKS:
         result = check_fn(datasets)
         results.append(result)
 
-        status_icon = "✅" if result["status"] == "PASS" else "❌"
+        status_icon = "[PASS]" if result["status"] == "PASS" else "[FAIL]"
         print(
             f"  {status_icon} Check {result['check_id']}: {result['check_name']}"
             f"  → {result['status']}"
@@ -431,9 +431,9 @@ def run_all_checks():
         json.dump(report, f, indent=2, default=str)
 
     print(f"\n{'=' * 60}")
-    print(f"📊 SUMMARY: {passed}/{len(results)} checks passed, {failed} failed")
+    print(f"SUMMARY: {passed}/{len(results)} checks passed, {failed} failed")
     print(f"   Total violations: {total_violations}")
-    print(f"   Status: {'🟢 HEALTHY' if failed == 0 else '🔴 ISSUES DETECTED'}")
+    print(f"   Status: {'HEALTHY' if failed == 0 else 'ISSUES DETECTED'}")
     print(f"   Report: {report_path}")
     print(f"{'=' * 60}")
 

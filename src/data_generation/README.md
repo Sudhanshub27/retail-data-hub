@@ -1,4 +1,4 @@
-# 📁 src/data_generation/
+# src/data_generation/
 
 ## Purpose
 Scripts to create realistic retail data that simulates 3 separate business systems. Uses the **UCI Online Retail** dataset as a base and **Faker** library for synthetic data.

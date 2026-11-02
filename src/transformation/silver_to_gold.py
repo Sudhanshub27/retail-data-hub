@@ -58,7 +58,7 @@ def load_silver(filename: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(f"Silver file not found: {path}")
     df = pd.read_parquet(path)
-    print(f"  ✓ Loaded {filename}: {len(df):,} rows × {len(df.columns)} cols")
+    print(f"  [OK] Loaded {filename}: {len(df):,} rows × {len(df.columns)} cols")
     return df
 
 
@@ -66,7 +66,7 @@ def save_gold(df: pd.DataFrame, filename: str) -> str:
     """Save a DataFrame to Gold layer as Parquet."""
     path = os.path.join(GOLD_DIR, filename)
     df.to_parquet(path, index=False, engine="pyarrow")
-    print(f"  💾 Saved → {path} ({len(df):,} rows)")
+    print(f"  [OK] Saved → {path} ({len(df):,} rows)")
     return path
 
 
@@ -76,7 +76,7 @@ def save_gold(df: pd.DataFrame, filename: str) -> str:
 
 def build_dim_date(min_date, max_date) -> pd.DataFrame:
     """Generate a dim_date table spanning the full date range."""
-    print("📅 Building dim_date …")
+    print("[INFO] Building dim_date …")
 
     dates = pd.date_range(start=min_date, end=max_date, freq="D")
 
@@ -96,7 +96,7 @@ def build_dim_date(min_date, max_date) -> pd.DataFrame:
         "year_month": dates.strftime("%Y-%m"),
     })
 
-    print(f"  ✅ dim_date: {len(df)} days ({min_date.date()} → {max_date.date()})")
+    print(f"  [OK] dim_date: {len(df)} days ({min_date.date()} → {max_date.date()})")
     return df
 
 
@@ -106,13 +106,13 @@ def build_dim_date(min_date, max_date) -> pd.DataFrame:
 
 def build_dim_product(sales_df: pd.DataFrame) -> pd.DataFrame:
     """Extract unique products from sales data with surrogate keys."""
-    print("📦 Building dim_product …")
+    print("[INFO] Building dim_product …")
 
     products = sales_df[["product_id", "product_name", "category"]].drop_duplicates()
     products = products.sort_values("product_id").reset_index(drop=True)
     products.insert(0, "product_sk", range(1, len(products) + 1))
 
-    print(f"  ✅ dim_product: {len(products)} unique products across {products['category'].nunique()} categories")
+    print(f"  [OK] dim_product: {len(products)} unique products across {products['category'].nunique()} categories")
     return products
 
 
@@ -122,7 +122,7 @@ def build_dim_product(sales_df: pd.DataFrame) -> pd.DataFrame:
 
 def build_dim_store() -> pd.DataFrame:
     """Build dim_store from the store universe."""
-    print("🏬 Building dim_store …")
+    print("[INFO] Building dim_store …")
 
     rows = []
     for i, store in enumerate(STORES, start=1):
@@ -144,7 +144,7 @@ def build_dim_store() -> pd.DataFrame:
     })
 
     df = pd.DataFrame(rows)
-    print(f"  ✅ dim_store: {len(df)} stores across {df['city'].nunique()} cities")
+    print(f"  [OK] dim_store: {len(df)} stores across {df['city'].nunique()} cities")
     return df
 
 
@@ -177,7 +177,7 @@ def build_fact_sales(
     dim_customer: pd.DataFrame,
 ) -> pd.DataFrame:
     """Build fact_sales table with FK references to all dimensions."""
-    print("📊 Building fact_sales …")
+    print("[INFO] Building fact_sales …")
 
     fact = sales_df.copy()
 
@@ -198,7 +198,7 @@ def build_fact_sales(
     fact["store_sk"] = fact["store_sk"].fillna(-1).astype(int)
 
     # ── Customer key lookup (SCD-aware) ──────────────────────────
-    print("  ⏳ Resolving customer surrogate keys (SCD Type 2) …")
+    print("  [INFO] Resolving customer surrogate keys (SCD Type 2) …")
     fact["customer_sk"] = fact.apply(
         lambda row: get_customer_sk(dim_customer, row["customer_id"], row["transaction_date"]),
         axis=1,
@@ -216,7 +216,7 @@ def build_fact_sales(
     fact["year"] = fact["transaction_date"].dt.year
     fact["month"] = fact["transaction_date"].dt.month
 
-    print(f"  ✅ fact_sales: {len(fact):,} rows, "
+    print(f"  [OK] fact_sales: {len(fact):,} rows, "
           f"date coverage: {fact['transaction_date'].min().date()} → {fact['transaction_date'].max().date()}")
 
     return fact
@@ -229,15 +229,15 @@ def build_fact_sales(
 def run_silver_to_gold():
     """Execute the full Silver → Gold transformation pipeline."""
     print("=" * 60)
-    print("⭐ SILVER → GOLD TRANSFORMATION (Star Schema)")
+    print("SILVER → GOLD TRANSFORMATION (Star Schema)")
     print("=" * 60)
 
     # ── Load Silver data ─────────────────────────────────────────
-    print("\n📂 Loading Silver layer …")
+    print("\n[INFO] Loading Silver layer …")
     sales_df = load_silver("unified_sales.parquet")
 
     # ── Build dimensions ─────────────────────────────────────────
-    print("\n📐 Building dimension tables …")
+    print("\n[INFO] Building dimension tables …")
 
     # dim_date from sales date range
     min_date = pd.to_datetime(sales_df["transaction_date"]).min()
@@ -254,11 +254,11 @@ def run_silver_to_gold():
     dim_customer = build_dim_customer_scd2()
 
     # ── Build fact table ─────────────────────────────────────────
-    print("\n📊 Building fact table …")
+    print("\n[INFO] Building fact table …")
     fact_sales = build_fact_sales(sales_df, dim_date, dim_product, dim_store, dim_customer)
 
     # ── Save Gold layer ──────────────────────────────────────────
-    print("\n💾 Saving Gold layer …")
+    print("\n[INFO] Saving Gold layer …")
     save_gold(dim_date, "dim_date.parquet")
     save_gold(dim_product, "dim_product.parquet")
     save_gold(dim_store, "dim_store.parquet")
@@ -267,7 +267,7 @@ def run_silver_to_gold():
 
     # ── Summary ──────────────────────────────────────────────────
     print(f"\n{'=' * 60}")
-    print("✅ Silver → Gold complete!")
+    print("[OK] Silver → Gold complete!")
     print(f"   fact_sales     : {len(fact_sales):,} rows")
     print(f"   dim_date       : {len(dim_date):,} rows")
     print(f"   dim_product    : {len(dim_product):,} rows")

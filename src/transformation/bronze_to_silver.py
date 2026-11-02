@@ -46,7 +46,7 @@ def load_parquet(subdir: str, filename: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(f"Bronze file not found: {path}")
     df = pd.read_parquet(path)
-    print(f"  ✓ Loaded {subdir}/{filename}: {len(df):,} rows × {len(df.columns)} cols")
+    print(f"  [OK] Loaded {subdir}/{filename}: {len(df):,} rows × {len(df.columns)} cols")
     return df
 
 
@@ -54,7 +54,7 @@ def save_parquet(df: pd.DataFrame, filename: str) -> str:
     """Save a DataFrame to Silver layer as Parquet."""
     path = os.path.join(SILVER_DIR, filename)
     df.to_parquet(path, index=False, engine="pyarrow")
-    print(f"  💾 Saved → {path} ({len(df):,} rows)")
+    print(f"  [OK] Saved → {path} ({len(df):,} rows)")
     return path
 
 
@@ -265,29 +265,29 @@ def merge_sales(pos_df: pd.DataFrame, web_df: pd.DataFrame) -> pd.DataFrame:
 def run_bronze_to_silver():
     """Execute the full Bronze → Silver transformation pipeline."""
     print("=" * 60)
-    print("🔄 BRONZE → SILVER TRANSFORMATION")
+    print("BRONZE → SILVER TRANSFORMATION")
     print("=" * 60)
 
     # ── Load Bronze data ─────────────────────────────────────────
-    print("\n📂 Loading Bronze layer …")
+    print("\n[INFO] Loading Bronze layer …")
     pos_df = load_parquet("pos_sales", "pos_sales.parquet")
     web_df = load_parquet("web_orders", "web_orders.parquet")
     inv_df = load_parquet("warehouse", "warehouse_inventory.parquet")
     ship_df = load_parquet("warehouse", "shipments.parquet")
 
     # ── Clean ────────────────────────────────────────────────────
-    print("\n🧹 Cleaning data …")
+    print("\n[INFO] Cleaning data …")
     pos_clean, pos_rejected = clean_pos_sales(pos_df)
     web_clean, web_rejected = clean_web_orders(web_df)
     inv_clean = clean_inventory(inv_df)
     ship_clean = clean_shipments(ship_df)
 
     # ── Merge POS + Web ──────────────────────────────────────────
-    print("\n🔗 Merging POS + Web into unified sales …")
+    print("\n[INFO] Merging POS + Web into unified sales …")
     unified = merge_sales(pos_clean, web_clean)
 
     # ── Save Silver ──────────────────────────────────────────────
-    print("\n💾 Saving Silver layer …")
+    print("\n[INFO] Saving Silver layer …")
     save_parquet(unified, "unified_sales.parquet")
     save_parquet(inv_clean, "warehouse_inventory.parquet")
     save_parquet(ship_clean, "shipments.parquet")
@@ -303,7 +303,7 @@ def run_bronze_to_silver():
 
     # ── Summary ──────────────────────────────────────────────────
     print(f"\n{'=' * 60}")
-    print(f"✅ Bronze → Silver complete!")
+    print(f"[OK] Bronze → Silver complete!")
     print(f"   Unified sales  : {len(unified):,} rows")
     print(f"   Inventory       : {len(inv_clean):,} rows")
     print(f"   Shipments       : {len(ship_clean):,} rows")

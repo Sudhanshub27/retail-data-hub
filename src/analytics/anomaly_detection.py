@@ -40,7 +40,7 @@ def load_star_schema():
         path = os.path.join(GOLD_DIR, f"{table}.parquet")
         con.execute(f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{path}')")
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        print(f"  ✓ Loaded {table}: {count:,} rows")
+        print(f"  [OK] Loaded {table}: {count:,} rows")
 
     return con
 
@@ -290,13 +290,13 @@ def detect_multivariate_anomalies(con):
 
 def run_anomaly_detection():
     print("=" * 60)
-    print("🔍 ANOMALY DETECTION — Statistical + ML Analysis")
+    print("ANOMALY DETECTION — Statistical + ML Analysis")
     print("=" * 60)
 
-    print("\n📂 Loading Gold layer …")
+    print("\n[INFO] Loading Gold layer …")
     con = load_star_schema()
 
-    print("\n🔬 Running detectors …")
+    print("\n[INFO] Running detectors …")
 
     print("  → Revenue anomalies (Z-Score) …")
     revenue_anomalies = detect_revenue_anomalies(con)
@@ -372,19 +372,18 @@ def run_anomaly_detection():
     }
 
     # Print summary
-    print(f"\n  📊 Total Anomalies: {len(all_anomalies)}")
+    print(f"\n  Total Anomalies: {len(all_anomalies)}")
     for sev, count in severity_counts.items():
-        emoji = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(sev, "⚪")
-        print(f"     {emoji} {sev}: {count}")
-    print(f"\n  🏙️  Most Affected City: {most_affected_city}")
-    print(f"  📦 Most Affected Product: {most_affected_product}")
+        print(f"     [{sev.upper()}]: {count}")
+    print(f"\n  Most Affected City: {most_affected_city}")
+    print(f"  Most Affected Product: {most_affected_product}")
 
     # Save
     output_path = os.path.join(ANALYTICS_DIR, "anomaly_report.json")
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     con.close()

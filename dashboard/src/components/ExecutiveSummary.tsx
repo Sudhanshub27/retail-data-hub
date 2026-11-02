@@ -1,71 +1,70 @@
 "use client";
 
-import { Sparkles, Brain, AlertCircle } from "lucide-react";
+import { Sparkles, Brain } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 
 export default function ExecutiveSummary() {
-    const { data, loading, error } = useApi<any>("/api/summary");
+  const { data, loading, error } = useApi<any>("/api/summary");
 
-    if (loading) {
-        return (
-            <div className="glass-card p-6 animate-pulse border border-white/5">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-white/5" />
-                    <div className="h-4 w-32 bg-white/5 rounded" />
-                </div>
-                <div className="space-y-3">
-                    <div className="h-3 w-full bg-white/5 rounded" />
-                    <div className="h-3 w-3/4 bg-white/5 rounded" />
-                    <div className="h-3 w-1/2 bg-white/5 rounded" />
-                </div>
-            </div>
-        );
-    }
-
-    if (error || !data || !data.insights) {
-        return null; // Don't show if there's an error or no data
-    }
-
-    const { insights, source } = data;
-    const isAI = source === "gemini_pro" || source === "gemini_pro_vision";
-
+  if (loading) {
     return (
-        <div className="relative group animate-slide-up">
-            {/* Background Glow */}
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-accent-purple/50 to-accent-teal/50 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-1000"></div>
-
-            <div className="relative p-4 lg:p-8 rounded-2xl border border-white/10 shadow-2xl bg-[#0f172a]/80 backdrop-blur-xl">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-3 lg:gap-4">
-                        <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-gradient-to-br from-accent-purple/30 to-accent-teal/20 flex items-center justify-center border border-accent-purple/30 shadow-lg shadow-accent-purple/10 flex-shrink-0">
-                            <Brain className="w-5 h-5 lg:w-6 lg:h-6 text-accent-purple" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg lg:text-xl font-bold text-white tracking-tight">Executive Summary</h2>
-                            <p className="text-[9px] lg:text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1">Retail Data Hub Intelligence</p>
-                        </div>
-                    </div>
-
-                    <div className={`flex items-center gap-2 px-3 lg:px-4 py-1.5 rounded-full text-[10px] lg:text-xs font-bold uppercase tracking-wider shadow-lg ${isAI
-                        ? "bg-accent-purple/20 text-accent-purple border border-accent-purple/30 shadow-accent-purple/20"
-                        : "bg-slate-800 text-slate-400 border border-white/10"
-                        }`}>
-                        <Sparkles className={`w-3.5 h-3.5 ${isAI ? "animate-pulse" : ""}`} />
-                        {isAI ? "AI Generated Insights" : "System Insights"}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-                    {insights.map((insight: string, idx: number) => (
-                        <div key={idx} className="relative flex gap-3 lg:gap-4 items-start p-4 lg:p-5 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] hover:border-accent-purple/30 transition-all duration-300 group/item hover:-translate-y-0.5 hover:shadow-lg">
-                            <div className="mt-2 w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-accent-purple shrink-0 group-hover/item:scale-150 group-hover/item:shadow-[0_0_8px_rgba(168,85,247,0.6)] transition-all duration-300" />
-                            <p className="text-sm lg:text-base text-slate-200 leading-relaxed font-semibold">
-                                {insight}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-            </div>
+      <div className="slate-card p-6 animate-pulse">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-200" />
+          <div className="h-4 w-32 bg-slate-200 rounded-lg" />
         </div>
+        <div className="space-y-3">
+          <div className="h-3 w-full bg-slate-200 rounded-lg" />
+          <div className="h-3 w-3/4 bg-slate-200 rounded-lg" />
+          <div className="h-3 w-1/2 bg-slate-200 rounded-lg" />
+        </div>
+      </div>
     );
+  }
+
+  if (error || !data || !data.insights) {
+    return null;
+  }
+
+  const { insights, source } = data;
+  const isAI = source === "gemini_pro" || source === "gemini_pro_vision";
+
+  return (
+    <div data-pdf-block="true" className="slate-card p-5 sm:p-6 animate-slide-up">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-3 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 flex-shrink-0">
+            <Brain className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight">Executive Summary</h2>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Retail Data Hub Intelligence</p>
+          </div>
+        </div>
+
+        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${
+          isAI
+            ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+            : "bg-slate-100 text-slate-700 border border-slate-200"
+        }`}>
+          <Sparkles className={`w-3.5 h-3.5 ${isAI ? "animate-pulse text-indigo-600" : "text-slate-500"}`} />
+          <span>{isAI ? "AI Generated Insights" : "System Insights"}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {insights.map((insight: string, idx: number) => (
+          <div
+            key={idx}
+            className="flex gap-3 items-start p-4 rounded-lg bg-slate-50 border border-slate-200 hover:border-slate-300 transition-colors"
+          >
+            <div className="mt-1.5 w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+            <p className="text-sm text-slate-800 leading-relaxed font-medium">
+              {insight}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

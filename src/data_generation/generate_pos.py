@@ -292,7 +292,7 @@ def customer_city_at(cid: str, date: datetime):
 # 3. GENERATE POS TRANSACTIONS (date-driven demand model)
 # ══════════════════════════════════════════════════════════════════════
 
-print("🧾 Generating POS sales…")
+print("[INFO] Generating POS sales…")
 
 # Generate invoices by iterating each day — this creates realistic daily patterns
 BASE_INVOICES_PER_DAY = 16   # ~16 invoices/day × 762 days ≈ 12,000 invoices
@@ -372,7 +372,7 @@ df = pd.DataFrame(ROWS)
 out_path = os.path.join(RAW_DIR, "pos_sales.csv")
 df.to_csv(out_path, index=False)
 
-print(f"✅ POS sales saved → {out_path}")
+print(f"[OK] POS sales saved → {out_path}")
 print(f"   Rows : {len(df):,}")
 print(f"   Invoices : {df['invoice_no'].nunique():,}")
 print(f"   Customers: {df['customer_id'].nunique():,}")

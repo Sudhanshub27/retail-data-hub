@@ -50,7 +50,7 @@ def generate_deterministic_fallback(data_summary):
 
 def main():
     print("="*60)
-    print("🧠 GENERATING EXECUTIVE SUMMARY (GEMINI AI)")
+    print("GENERATING EXECUTIVE SUMMARY (GEMINI AI)")
     print("="*60)
 
     # 1. Load Data
@@ -60,7 +60,7 @@ def main():
     forecast = load_json("demand_forecast.json")
 
     if not commercial:
-        print("❌ Error: Missing commercial_kpis.json. Run kpi_analysis.sh first.")
+        print("[ERROR] Missing commercial_kpis.json. Run kpi_analysis.sh first.")
         return
 
     # 2. Build Snapshot for AI
@@ -87,7 +87,7 @@ def main():
     - Top Growth Category Predicted: {top_growth_cat}
     """
 
-    print("📊 Data Snapshot Prepared.")
+    print("[INFO] Data Snapshot Prepared.")
     
     # 3. Call Gemini
     models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash']
@@ -127,16 +127,16 @@ def main():
                 "generated_at": datetime.now().isoformat(),
                 "insights": insights
             }
-            print(f"✅ Gemini AI ({model_name}) generated insights successfully.")
+            print(f"[OK] Gemini AI ({model_name}) generated insights successfully.")
             success = True
             break
 
         except Exception as e:
-            print(f"⚠️ {model_name} Error: {e}")
+            print(f"[WARN] {model_name} Error: {e}")
             continue
 
     if not success:
-        print("❌ All Gemini models failed. Using deterministic fallback.")
+        print("[ERROR] All Gemini models failed. Using deterministic fallback.")
         result = generate_deterministic_fallback(snapshot)
 
     # 4. Save
@@ -144,7 +144,7 @@ def main():
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
     
-    print(f"📁 Summary saved to {OUT_FILE}")
+    print(f"[OK] Summary saved to {OUT_FILE}")
     print("="*60)
 
 if __name__ == "__main__":

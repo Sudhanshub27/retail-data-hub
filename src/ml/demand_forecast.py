@@ -76,14 +76,14 @@ class SalesLSTM(nn.Module):
 
 def load_daily_revenue() -> pd.DataFrame:
     """Load Gold layer and aggregate daily revenue by category."""
-    print("📂 Loading Gold layer …")
+    print("[INFO] Loading Gold layer …")
     fact = pd.read_parquet(os.path.join(GOLD, "fact_sales.parquet"))
     dim_date = pd.read_parquet(os.path.join(GOLD, "dim_date.parquet"))
     dim_prod = pd.read_parquet(os.path.join(GOLD, "dim_product.parquet"))
 
-    print(f"  ✓ fact_sales: {len(fact):,} rows")
-    print(f"  ✓ dim_date: {len(dim_date):,} rows")
-    print(f"  ✓ dim_product: {len(dim_prod):,} rows")
+    print(f"  [OK] fact_sales: {len(fact):,} rows")
+    print(f"  [OK] dim_date: {len(dim_date):,} rows")
+    print(f"  [OK] dim_product: {len(dim_prod):,} rows")
 
     # join fact → date + product
     df = fact.merge(dim_date[["date_key", "full_date"]], on="date_key")
@@ -96,7 +96,7 @@ def load_daily_revenue() -> pd.DataFrame:
     daily["date"] = pd.to_datetime(daily["date"])
     daily = daily.sort_values(["category", "date"]).reset_index(drop=True)
 
-    print(f"  ✓ Daily revenue: {len(daily):,} data points across "
+    print(f"  [OK] Daily revenue: {len(daily):,} data points across "
           f"{daily['category'].nunique()} categories")
     return daily
 
@@ -251,7 +251,7 @@ def forecast_future(model, scaler, last_seq: np.ndarray, last_date: pd.Timestamp
 
 def main():
     print("=" * 60)
-    print("🧠 LSTM DEMAND FORECASTING")
+    print("LSTM DEMAND FORECASTING")
     print("=" * 60)
     print()
 
@@ -264,7 +264,7 @@ def main():
     category_summaries = []
 
     print()
-    print(f"🏋️  Training LSTM models for {len(categories)} categories …")
+    print(f"[INFO] Training LSTM models for {len(categories)} categories …")
     print()
 
     for cat in categories:
@@ -279,12 +279,12 @@ def main():
                     .reset_index())
         cat_data["category"] = cat
 
-        print(f"  📈 {cat} ({len(cat_data)} days) … ", end="", flush=True)
+        print(f"  [INFO] {cat} ({len(cat_data)} days) … ", end="", flush=True)
 
         model, scaler, metrics, history = train_category_model(cat_data, cat)
 
         if model is None:
-            print("⏭️  skipped (insufficient data)")
+            print("[WARN] skipped (insufficient data)")
             continue
 
         print(f"R² = {metrics['r2']:.3f}, MAE = ₹{metrics['mae']:,.0f}")
@@ -361,7 +361,7 @@ def main():
 
     print()
     print("=" * 60)
-    print(f"✅ LSTM Forecasting complete!")
+    print(f"[OK] LSTM Forecasting complete!")
     print(f"   Categories trained : {len(all_metrics)}")
     print(f"   Average R²         : {avg_r2:.3f}")
     print(f"   Average MAE        : ₹{avg_mae:,.0f}")

@@ -24,7 +24,7 @@ if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
     except Exception as err:
-        print(f"⚠️ Gemini configuration warning: {err}")
+        print(f"[WARN] Gemini configuration warning: {err}")
 
 # ── platform meta-context ──────────────────────────────────────────
 PLATFORM_KNOWLEDGE = {
@@ -99,7 +99,7 @@ class ChatEngine:
                         elif key == "summary":
                             snapshot["executive_kpis"] = data.get("kpis", {})
                 except Exception as e:
-                    print(f"❌ Error loading {filename}: {e}")
+                    print(f"[ERROR] Error loading {filename}: {e}")
         
         return snapshot
 
@@ -162,10 +162,10 @@ ANALYTICS DATA SNAPSHOT:
                             text = text[start:end+1]
 
                     parsed = json.loads(text)
-                    print(f"✅ AI Success: Responded using {model_name}")
+                    print(f"[OK] AI Success: Responded using {model_name}")
                     return parsed
                 except Exception as e:
-                    print(f"⚠️ {model_name} Attempt failed: {e}")
+                    print(f"[WARN] {model_name} Attempt failed: {e}")
                     continue
 
         return self._dynamic_query_engine(user_query)

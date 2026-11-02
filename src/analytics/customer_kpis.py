@@ -33,7 +33,7 @@ def load_data():
     for table in ["fact_sales", "dim_date", "dim_product", "dim_store", "dim_customer"]:
         path = os.path.join(GOLD_DIR, f"{table}.parquet")
         con.execute(f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{path}')")
-    print("  ✓ All Gold tables loaded")
+    print("  [OK] All Gold tables loaded")
     return con
 
 
@@ -266,13 +266,13 @@ def kpi_customer_cities(con):
 
 def run_customer_kpis():
     print("=" * 60)
-    print("👥 CUSTOMER KPIs — CLV, RFM, New vs Returning")
+    print("CUSTOMER KPIs — CLV, RFM, New vs Returning")
     print("=" * 60)
 
-    print("\n📂 Loading Gold layer …")
+    print("\n[INFO] Loading Gold layer …")
     con = load_data()
 
-    print("\n🔢 Computing KPIs …")
+    print("\n[INFO] Computing KPIs …")
     kpis = {
         "computed_at": datetime.now().isoformat(),
         "new_vs_returning": kpi_new_vs_returning(con),
@@ -284,15 +284,15 @@ def run_customer_kpis():
     # Print summary
     nvr = kpis["new_vs_returning"]["summary"]
     clv = kpis["clv"]["stats"]
-    print(f"\n  👥 Total Unique Customers : {nvr.get('total_unique_customers', 0):,}")
-    print(f"  🔁 Repeat Rate           : {nvr.get('repeat_rate_pct', 0)}%")
-    print(f"  💰 Avg CLV               : ₹{clv.get('avg_clv', 0):,.0f}")
-    print(f"  💰 Median CLV            : ₹{clv.get('median_clv', 0):,.0f}")
-    print(f"  🏆 Max CLV               : ₹{clv.get('max_clv', 0):,.0f}")
+    print(f"\n  Total Unique Customers : {nvr.get('total_unique_customers', 0):,}")
+    print(f"  Repeat Rate           : {nvr.get('repeat_rate_pct', 0)}%")
+    print(f"  Avg CLV               : ₹{clv.get('avg_clv', 0):,.0f}")
+    print(f"  Median CLV            : ₹{clv.get('median_clv', 0):,.0f}")
+    print(f"  Max CLV               : ₹{clv.get('max_clv', 0):,.0f}")
 
     rfm_segments = kpis["rfm"].get("segments", [])
     if rfm_segments:
-        print(f"\n  📊 RFM Segments:")
+        print(f"\n  RFM Segments:")
         for seg in sorted(rfm_segments, key=lambda x: x["count"], reverse=True):
             print(f"     {seg['segment']:20s} → {seg['count']:,} customers (avg ₹{seg['avg_monetary']:,.0f})")
 
@@ -301,7 +301,7 @@ def run_customer_kpis():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(kpis, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     con.close()

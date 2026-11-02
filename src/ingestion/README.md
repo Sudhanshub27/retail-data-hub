@@ -1,4 +1,4 @@
-# 📁 src/ingestion/
+# src/ingestion/
 
 ## Purpose
 Data ingestion pipelines that read raw source files and land them as Parquet in the **Bronze Layer**. Supports both **batch** (CSV/DB) and **near real-time** (JSON) ingestion.

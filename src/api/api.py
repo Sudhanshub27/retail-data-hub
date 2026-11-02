@@ -488,7 +488,7 @@ async def ws_live(websocket: WebSocket):
     """Dashboard clients connect here to receive live transaction updates."""
     await websocket.accept()
     live_clients.add(websocket)
-    print(f"📡 Dashboard client connected ({len(live_clients)} total)")
+    print(f"[INFO] Dashboard client connected ({len(live_clients)} total)")
     try:
         # Send current stats on connect
         await websocket.send_json({"type": "stats", "data": live_stats})
@@ -499,14 +499,14 @@ async def ws_live(websocket: WebSocket):
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         live_clients.discard(websocket)
-        print(f"📡 Dashboard client disconnected ({len(live_clients)} total)")
+        print(f"[INFO] Dashboard client disconnected ({len(live_clients)} total)")
 
 
 @app.websocket("/ws/simulator")
 async def ws_simulator(websocket: WebSocket):
     """Simulator sends transactions here; they are broadcast to dashboard clients."""
     await websocket.accept()
-    print("⚡ Simulator connected")
+    print("[INFO] Simulator connected")
     try:
         while True:
             raw = await websocket.receive_text()
@@ -527,7 +527,7 @@ async def ws_simulator(websocket: WebSocket):
                 "stats": live_stats,
             })
     except WebSocketDisconnect:
-        print("⚡ Simulator disconnected")
+        print("[INFO] Simulator disconnected")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -605,6 +605,6 @@ def test_alert(payload: AlertTestPayload):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Retail Data Hub API on http://localhost:8000")
-    print("📚 API docs → http://localhost:8000/docs")
+    print("[INFO] Starting Retail Data Hub API on http://localhost:8000")
+    print("[INFO] API docs -> http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

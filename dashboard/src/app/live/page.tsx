@@ -12,6 +12,8 @@ import {
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import ChartTooltip from "@/components/ChartTooltip";
+import EmptyState from "@/components/EmptyState";
 import {
   LineChart,
   Line,
@@ -22,6 +24,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useStore } from "@/context/StoreContext";
+import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
+import { fmtCurrency, fmtNum } from "@/lib/format";
 
 interface StreamTxn {
   id: string;
@@ -38,10 +42,10 @@ export default function LivePage() {
 
   const [isStreaming, setIsStreaming] = useState(true);
   const [streamData, setStreamData] = useState<StreamTxn[]>([
-    { id: "LIVE-9041", sku: "SKU-8842", price: 249.99, channel: "POS NYC Broadway", timestamp: "23:04:12", latencyMs: 14 },
-    { id: "LIVE-9042", sku: "SKU-3109", price: 18.5, channel: "E-Commerce Web", timestamp: "23:04:13", latencyMs: 18 },
-    { id: "LIVE-9043", sku: "SKU-9901", price: 320.0, channel: "Mobile App iOS", timestamp: "23:04:14", latencyMs: 12 },
-    { id: "LIVE-9044", sku: "SKU-4412", price: 199.0, channel: "POS Chicago #104", timestamp: "23:04:15", latencyMs: 22 },
+    { id: "LIVE-9041", sku: "Wireless Noise-Canceling Headphones", price: 14500, channel: "Mumbai Flagship Store", timestamp: "23:04:12", latencyMs: 14 },
+    { id: "LIVE-9042", sku: "Organic Espresso Dark Roast (1kg)", price: 1850, channel: "E-Commerce Web", timestamp: "23:04:13", latencyMs: 18 },
+    { id: "LIVE-9043", sku: "Ergonomic Mesh Executive Chair", price: 24900, channel: "Mobile App Android", timestamp: "23:04:14", latencyMs: 12 },
+    { id: "LIVE-9044", sku: "Smart Fitness Watch Series V", price: 19900, channel: "Delhi NCR POS #2", timestamp: "23:04:15", latencyMs: 22 },
   ]);
 
   // Telemetry Latency chart data
@@ -57,17 +61,24 @@ export default function LivePage() {
     if (!isStreaming) return;
     const interval = setInterval(() => {
       const newId = `LIVE-${Math.floor(80000 + Math.random() * 20000)}`;
-      const skus = ["SKU-8842", "SKU-3109", "SKU-9901", "SKU-2041"];
-      const channels = ["E-Commerce Web", "POS NYC Broadway", "Mobile App iOS", "POS Chicago #104"];
+      const skus = [
+        "Wireless Noise-Canceling Headphones",
+        "Organic Espresso Dark Roast (1kg)",
+        "Ergonomic Mesh Executive Chair",
+        "Stainless Steel Insulated Tumbler",
+      ];
+      const prices = [14500, 1850, 24900, 1200];
+      const channels = ["E-Commerce Web", "Mumbai Flagship Store", "Mobile App Android", "Delhi NCR POS #2"];
+      const randIdx = Math.floor(Math.random() * skus.length);
       const newTxn: StreamTxn = {
         id: newId,
-        sku: skus[Math.floor(Math.random() * skus.length)],
-        price: Number((20 + Math.random() * 300).toFixed(2)),
+        sku: skus[randIdx],
+        price: prices[randIdx],
         channel: channels[Math.floor(Math.random() * channels.length)],
         timestamp: new Date().toISOString().split("T")[1].split(".")[0],
         latencyMs: Math.floor(12 + Math.random() * 15),
       };
-      setStreamData((prev) => [newTxn, ...prev.slice(0, 7)]);
+      setStreamData((prev) => [newTxn, ...prev.slice(0, 6)]);
     }, 2500);
 
     return () => clearInterval(interval);
@@ -75,17 +86,17 @@ export default function LivePage() {
 
   return (
     <div className="space-y-6">
+      {/* 1. PageHeader */}
       <PageHeader
-        title="Real-Time Operations & Event Streaming"
-        subtitle={`WebSocket stream log, checkout funnel drop-off ticker, and QPS latency for ${selectedStore.name}`}
-        icon={Radio}
+        title="Real-Time Event Stream"
+        subtitle={`Live order stream, transaction processing speed, and database response latency for ${selectedStore.name}`}
         action={
           <button
             onClick={() => setIsStreaming(!isStreaming)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
               isStreaming
                 ? "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300"
             }`}
           >
             {isStreaming ? (
@@ -94,108 +105,119 @@ export default function LivePage() {
               </>
             ) : (
               <>
-                <Play className="w-4 h-4 text-white" /> Resume Stream
+                <Play className="w-4 h-4 text-emerald-600" /> Resume Stream
               </>
             )}
           </button>
         }
       />
 
-      {/* KPI Cards */}
+      {/* 2. Row of KPI cards (max 4, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Current QPS Throughput"
-          value={Math.round(530 * mult).toString()}
-          change="Queries / Sec"
+          title="Processing Throughput"
+          value={`${fmtNum(Math.round(530 * mult))} req/s`}
+          change="Requests per second"
           trend="up"
           icon={Activity}
-          accentColor="cyan"
-          subtitle="ClickHouse Stream Engine"
+          subtitle="Real-time transaction events handled per second"
+          sparklineData={[420, 440, 480, 510, 530]}
         />
         <KpiCard
-          title="Avg Server Latency"
+          title="Average Response Speed"
           value="16 ms"
-          change="Sub-20ms SLA"
+          change="Sub-20ms Target"
           trend="up"
           icon={Zap}
-          accentColor="emerald"
-          subtitle="DuckDB Query Latency"
+          subtitle="Average roundtrip database query response time"
+          sparklineData={[18, 15, 22, 14, 16]}
         />
         <KpiCard
-          title="Checkout Funnel Drop-off"
+          title="Cart Drop-off Rate"
           value="2.4%"
-          change="Low Abandonment"
+          change="97.6% Completed"
           trend="up"
           icon={ShoppingCart}
-          accentColor="indigo"
-          subtitle="97.6% Checkout Completion"
+          subtitle="Percentage of shopping carts abandoned before checkout"
         />
         <KpiCard
-          title="Stream Connection"
+          title="Live Connection Status"
           value={isStreaming ? "CONNECTED" : "PAUSED"}
-          change={isStreaming ? "WebSocket Active" : "Stream Held"}
-          trend="neutral"
+          change={isStreaming ? "Stream Active" : "Stream Held"}
+          trend={isStreaming ? "up" : "neutral"}
           icon={Radio}
-          accentColor={isStreaming ? "cyan" : "amber"}
-          subtitle="Port 8000 /ws/live"
+          subtitle="Real-time streaming pipeline via WebSocket"
         />
       </div>
 
-      {/* Grid: Streaming Transaction Log & Latency Graph */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 3. Consistent 12-column grid with gap-6 */}
+      <div className="grid grid-cols-12 gap-6">
         {/* High-frequency Streaming Transaction Log */}
-        <ChartCard
-          title="Streaming Transaction Log"
-          subtitle="Real-time event stream arriving from omnichannel endpoints"
-          badge={isStreaming ? "Active Stream" : "Paused"}
-        >
-          <div className="space-y-2.5 my-1">
-            {streamData.map((txn) => (
-              <div
-                key={txn.id}
-                className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs animate-slide-down shadow-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-600"></span>
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-indigo-600">{txn.id}</span>
-                      <span className="font-semibold text-slate-900">{txn.sku}</span>
+        <div className="col-span-12 lg:col-span-6">
+          <ChartCard
+            title="Incoming Transaction Log"
+            subtitle="Live feed of customer checkout events arriving from stores, web, and mobile apps"
+          >
+            {streamData.length === 0 ? (
+              <EmptyState title="No transactions received" description="Stream is awaiting incoming checkout events." />
+            ) : (
+              <div className="space-y-2.5 my-1">
+                {streamData.map((txn) => (
+                  <div
+                    key={txn.id}
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs animate-slide-down hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 flex-shrink-0 inline-block" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-medium text-indigo-600">{txn.id}</span>
+                          <span className="font-semibold text-slate-900">{txn.sku}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {txn.channel} • {txn.timestamp}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                      {txn.channel} • {txn.timestamp}
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold text-emerald-700 text-sm tabular-nums">
+                        {fmtCurrency(txn.price)}
+                      </div>
+                      <div className="text-xs text-slate-400 font-medium tabular-nums">{txn.latencyMs}ms delay</div>
                     </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono font-bold text-emerald-700 text-sm">${txn.price}</div>
-                  <div className="text-[10px] text-slate-400 font-mono font-medium">{txn.latencyMs}ms latency</div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </ChartCard>
+            )}
+          </ChartCard>
+        </div>
 
         {/* Server Response Latency Graph */}
-        <ChartCard
-          title="Server Latency Telemetry"
-          subtitle="Sub-second query response time and QPS throughput tracking"
-        >
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={telemetry} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} />
-                <YAxis stroke="#64748b" tick={{ fill: "#475569", fontSize: 12 }} tickFormatter={(v) => `${v}ms`} />
-                <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }} />
-                <Line type="monotone" dataKey="latency" name="Latency (ms)" stroke="#0891b2" strokeWidth={3} dot={{ fill: "#0891b2" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </ChartCard>
+        <div className="col-span-12 lg:col-span-6">
+          <ChartCard
+            title="Database Query Response Time"
+            subtitle="Millisecond latency tracking query roundtrips under current query workload"
+          >
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={telemetry} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis dataKey="time" {...CHART_AXIS_PROPS} />
+                  <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v) => `${v}ms`} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => `${v} ms`} />} />
+                  <Line
+                    type="monotone"
+                    dataKey="latency"
+                    name="Response Time"
+                    stroke={CHART_COLORS[0]}
+                    strokeWidth={2}
+                    dot={{ fill: CHART_COLORS[0] }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+        </div>
       </div>
     </div>
   );

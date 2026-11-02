@@ -18,15 +18,15 @@ export default function ChartCard({
   badge,
 }: ChartCardProps) {
   return (
-    <div className={`bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs transition-all ${className}`}>
+    <div data-pdf-block="true" className={`slate-card p-5 sm:p-6 ${className}`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">
               {title}
             </h3>
             {badge && (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {badge}
               </span>
             )}

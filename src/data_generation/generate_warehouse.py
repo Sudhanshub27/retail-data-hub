@@ -43,7 +43,7 @@ CARRIERS = [
     "Shadowfax", "XpressBees", "India Post",
 ]
 
-print("📦 Generating warehouse inventory snapshots…")
+print("[INFO] Generating warehouse inventory snapshots…")
 
 # generate 1st-of-month dates from Jan 2023 → Jan 2025 (25 snapshots)
 snapshot_dates = []
@@ -90,7 +90,7 @@ inv_df = pd.DataFrame(INVENTORY_ROWS)
 inv_path = os.path.join(RAW_DIR, "warehouse_inventory.csv")
 inv_df.to_csv(inv_path, index=False)
 
-print(f"✅ Inventory saved → {inv_path}")
+print(f"[OK] Inventory saved → {inv_path}")
 print(f"   Rows      : {len(inv_df):,}")
 print(f"   Snapshots : {inv_df['snapshot_date'].nunique()}")
 print(f"   Stores    : {inv_df['store_id'].nunique()}")
@@ -102,7 +102,7 @@ print(f"   Stockout % : {stockout_pct:.1f}%")
 # 2. SHIPMENTS — delivery records
 # ══════════════════════════════════════════════════════════════════════
 
-print("\n🚚 Generating shipments…")
+print("\n[INFO] Generating shipments…")
 
 NUM_SHIPMENTS = 8_000
 STATUSES = ["Delivered", "In Transit", "Delayed", "Returned"]
@@ -163,7 +163,7 @@ ship_df.to_csv(ship_path, index=False)
 delivered = ship_df[ship_df["status"] == "Delivered"]
 status_counts = ship_df["status"].value_counts()
 
-print(f"\n✅ Shipments saved → {ship_path}")
+print(f"\n[OK] Shipments saved → {ship_path}")
 print(f"   Rows       : {len(ship_df):,}")
 print(f"   Carriers   : {ship_df['carrier'].nunique()}")
 print(f"   Status mix :")
@@ -181,4 +181,4 @@ if not delivered.empty:
     print(f"   Avg delivery: {avg_days:.1f} days")
     print(f"   Bottleneck %: {bottleneck:.1f}% (≥7 days)")
 
-print("\n🎉 Phase 1 warehouse generation complete!")
+print("\n[OK] Phase 1 warehouse generation complete!")

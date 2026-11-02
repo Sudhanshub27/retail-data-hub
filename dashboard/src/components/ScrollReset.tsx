@@ -4,14 +4,17 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 export default function ScrollReset() {
-    const pathname = usePathname();
+  const pathname = usePathname();
 
-    useEffect(() => {
-        const container = document.getElementById("main-scroll-container");
-        if (container) {
-            container.scrollTo(0, 0);
-        }
-    }, [pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const container =
+      document.getElementById("main-scroll-container") ||
+      document.getElementById("dashboard-pdf-area");
+    if (container) {
+      container.scrollTo(0, 0);
+    }
+  }, [pathname]);
 
-    return null;
+  return null;
 }

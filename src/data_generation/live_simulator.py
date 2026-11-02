@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 try:
     import websockets
 except ImportError:
-    print("❌ websockets package not installed. Run: pip install websockets")
+    print("[ERROR] websockets package not installed. Run: pip install websockets")
     sys.exit(1)
 
 # ── Simplified product/store/customer universe ─────────────────────
@@ -122,9 +122,9 @@ def generate_transaction(inject_anomaly=False, inject_fraud=False):
 
 async def run_simulator():
     print("=" * 60)
-    print("⚡ LIVE TRANSACTION SIMULATOR")
+    print("LIVE TRANSACTION SIMULATOR")
     print("=" * 60)
-    print(f"\n🔌 Connecting to {WS_URL} …")
+    print(f"\n[INFO] Connecting to {WS_URL} …")
 
     retry_count = 0
     max_retries = 10
@@ -132,7 +132,7 @@ async def run_simulator():
     while retry_count < max_retries:
         try:
             async with websockets.connect(WS_URL) as ws:
-                print("✅ Connected! Generating live transactions …")
+                print("[OK] Connected! Generating live transactions …")
                 print("   Press Ctrl+C to stop.\n")
                 retry_count = 0
                 tx_count = 0
@@ -149,29 +149,29 @@ async def run_simulator():
 
                     await ws.send(json.dumps(txn))
 
-                    emoji = {"normal": "🟢", "anomaly": "🟡", "fraud": "🔴"}.get(txn["event_type"], "⚪")
-                    print(f"  {emoji} #{tx_count} | {txn['event_type'].upper():8s} | {txn['product_name']:28s} | ₹{txn['total_amount']:>10,.2f} | {txn['city']}")
+                    status_tag = {"normal": "[NORMAL] ", "anomaly": "[ANOMALY]", "fraud": "[FRAUD]  "}.get(txn["event_type"], "[INFO]   ")
+                    print(f"  {status_tag} #{tx_count} | {txn['event_type'].upper():8s} | {txn['product_name']:28s} | ₹{txn['total_amount']:>10,.2f} | {txn['city']}")
 
                     await asyncio.sleep(random.uniform(2.0, 3.5))
 
         except (ConnectionRefusedError, OSError) as e:
             retry_count += 1
-            print(f"\n⏳ API not ready (attempt {retry_count}/{max_retries}). Retrying in 3s …")
+            print(f"\n[WARN] API not ready (attempt {retry_count}/{max_retries}). Retrying in 3s …")
             await asyncio.sleep(3)
         except websockets.exceptions.ConnectionClosed:
             retry_count += 1
-            print(f"\n🔄 Connection lost (attempt {retry_count}/{max_retries}). Reconnecting in 2s …")
+            print(f"\n[WARN] Connection lost (attempt {retry_count}/{max_retries}). Reconnecting in 2s …")
             await asyncio.sleep(2)
         except KeyboardInterrupt:
-            print("\n\n🛑 Simulator stopped.")
+            print("\n\n[INFO] Simulator stopped.")
             break
 
     if retry_count >= max_retries:
-        print(f"\n❌ Could not connect after {max_retries} attempts. Is the API running?")
+        print(f"\n[ERROR] Could not connect after {max_retries} attempts. Is the API running?")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(run_simulator())
     except KeyboardInterrupt:
-        print("\n🛑 Simulator stopped.")
+        print("\n[INFO] Simulator stopped.")

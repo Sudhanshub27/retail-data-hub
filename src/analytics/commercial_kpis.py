@@ -39,7 +39,7 @@ def load_star_schema():
         path = os.path.join(GOLD_DIR, f"{table}.parquet")
         con.execute(f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{path}')")
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        print(f"  ✓ Loaded {table}: {count:,} rows")
+        print(f"  [OK] Loaded {table}: {count:,} rows")
 
     return con
 
@@ -231,13 +231,13 @@ def kpi_festive_analysis(con):
 
 def run_commercial_kpis():
     print("=" * 60)
-    print("📈 COMMERCIAL KPIs — Revenue, Sales, Products")
+    print("COMMERCIAL KPIs — Revenue, Sales, Products")
     print("=" * 60)
 
-    print("\n📂 Loading Gold layer …")
+    print("\n[INFO] Loading Gold layer …")
     con = load_star_schema()
 
-    print("\n🔢 Computing KPIs …")
+    print("\n[INFO] Computing KPIs …")
 
     kpis = {
         "computed_at": datetime.now().isoformat(),
@@ -251,20 +251,20 @@ def run_commercial_kpis():
 
     # Print summary
     rev = kpis["revenue"]["summary"]
-    print(f"\n  💰 Total Revenue    : ₹{rev['total_revenue']:,.0f}")
-    print(f"  🧾 Total Transactions: {rev['total_transactions']:,}")
-    print(f"  📦 Total Units Sold  : {rev['total_units_sold']:,}")
-    print(f"  💳 Avg Transaction   : ₹{rev['avg_transaction_value']:,.0f}")
+    print(f"\n  Total Revenue    : ₹{rev['total_revenue']:,.0f}")
+    print(f"  Total Transactions: {rev['total_transactions']:,}")
+    print(f"  Total Units Sold  : {rev['total_units_sold']:,}")
+    print(f"  Avg Transaction   : ₹{rev['avg_transaction_value']:,.0f}")
 
-    print(f"\n  📊 Channel Mix:")
+    print(f"\n  Channel Mix:")
     for ch in kpis["channel_mix"]:
         print(f"     {ch['channel']:5s} → ₹{ch['revenue']:>14,.0f} ({ch['revenue_pct']}%)")
 
-    print(f"\n  🏙️  Top 3 Cities by Revenue:")
+    print(f"\n  Top 3 Cities by Revenue:")
     for city in kpis["city_sales"][:3]:
         print(f"     {city['city']:12s} → ₹{city['revenue']:>14,.0f}")
 
-    print(f"\n  🏆 Top 3 Products by Revenue:")
+    print(f"\n  Top 3 Products by Revenue:")
     for prod in kpis["top_products"]["top_by_revenue"][:3]:
         print(f"     {prod['product_name']:30s} → ₹{prod['revenue']:>12,.0f}")
 
@@ -273,7 +273,7 @@ def run_commercial_kpis():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(kpis, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     con.close()

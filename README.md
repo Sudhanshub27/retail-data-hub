@@ -1,19 +1,19 @@
-# 🛍️ Retail Data & Operations Hub
+# Retail Data & Operations Hub
 
 > **Executive-Grade Retail Analytics, Medallion Architecture Data Pipeline, AI Copilot, and Real-Time Operations Engine** built with **Next.js 14 (App Router)**, **Tailwind CSS**, **DuckDB**, **FastAPI**, **PyTorch**, and **Google Gemini AI**.
 
 ---
 
-## 🌐 Live Deployments
+## Live Deployments
 
 * **Frontend Dashboard (Vercel)**: [Retail Data Hub on Vercel](https://retail-data-hub.vercel.app)
 * **Backend API (Render)**: [Retail Analytics FastAPI on Render](https://retail-data-hub-1n2u.onrender.com)
 
-> ⚡ **Backend Cold Start Note**: The FastAPI backend is deployed on Render's cloud infrastructure. If the backend has been idle for 15+ minutes, Render spins down the free instance. The initial API request may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
+> **Backend Cold Start Note**: The FastAPI backend is deployed on Render's cloud infrastructure. If the backend has been idle for 15+ minutes, Render spins down the free instance. The initial API request may take **15–30 seconds** to wake up the server instance. Subsequent requests execute with zero latency.
 
 ---
 
-## 🛠️ Complete Tech Stack Architecture
+## Complete Tech Stack Architecture
 
 | Layer | Technologies & Frameworks | Description |
 | :--- | :--- | :--- |
@@ -26,9 +26,9 @@
 
 ---
 
-## 🔌 Complete REST API & WebSocket Reference
+## Complete REST API & WebSocket Reference
 
-### 🟢 Core Analytics Endpoints
+### Core Analytics Endpoints
 
 | Method | Endpoint | Description | Query Params / Body | Sample Output Key |
 | :--- | :--- | :--- | :--- | :--- |
@@ -44,7 +44,7 @@
 
 ---
 
-### 🤖 AI Copilot & Automated Alerting Endpoints
+### AI Copilot & Automated Alerting Endpoints
 
 | Method | Endpoint | Description | Request Payload | Response Schema |
 | :--- | :--- | :--- | :--- | :--- |
@@ -55,7 +55,7 @@
 
 ---
 
-### ⚡ Live WebSockets Stream
+### Live WebSockets Stream
 
 | Protocol | Endpoint | Direction | Description |
 | :--- | :--- | :--- | :--- |
@@ -64,7 +64,7 @@
 
 ---
 
-## 🏗️ Medallion Architecture & Data Pipeline
+## Medallion Architecture & Data Pipeline
 
 ```
        ┌────────────────┐
@@ -103,9 +103,9 @@
 
 ---
 
-## 💻 Local Setup & Data Pipeline Execution
+## Local Setup & Data Pipeline Execution
 
-> 📌 **Synthetic Data Note**: To mirror enterprise scale without committing multi-gigabyte data files to git, **all data is generated locally using synthetic data scripts**.
+> **Synthetic Data Note**: To mirror enterprise scale without committing multi-gigabyte data files to git, **all data is generated locally using synthetic data scripts**.
 
 ### 1. Prerequisites
 * **Python 3.9+**
@@ -171,7 +171,7 @@ npm run dev
 
 ---
 
-## 📂 Project Directory Structure
+## Project Directory Structure
 
 ```
 retail-data-hub/
@@ -200,6 +200,6 @@ retail-data-hub/
 
 ---
 
-## 🛡️ License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more details.

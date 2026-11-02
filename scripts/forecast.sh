@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 🧠 Step 5b: LSTM Demand Forecasting
+# Step 5b: LSTM Demand Forecasting
 # ============================================================
 set -e
 
@@ -9,7 +9,7 @@ cd "$PROJ_DIR"
 source .venv/bin/activate
 
 echo "============================================================"
-echo "🧠 STEP 5b — LSTM DEMAND FORECASTING"
+echo "STEP 5b — LSTM DEMAND FORECASTING"
 echo "============================================================"
 echo ""
 
@@ -17,5 +17,5 @@ python3 src/ml/demand_forecast.py
 
 echo ""
 echo "============================================================"
-echo "✅ Forecast → data/analytics/demand_forecast.json"
+echo "[OK] Forecast -> data/analytics/demand_forecast.json"
 echo "============================================================"

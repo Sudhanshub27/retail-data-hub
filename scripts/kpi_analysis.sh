@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 📈 Step 5: Run KPI Analytics
+# Step 5: Run KPI Analytics
 # ============================================================
 set -e
 
@@ -9,7 +9,7 @@ cd "$PROJ_DIR"
 source .venv/bin/activate
 
 echo "============================================================"
-echo "📈 STEP 5 — RUNNING KPI ANALYTICS"
+echo "STEP 5 — RUNNING KPI ANALYTICS"
 echo "============================================================"
 echo ""
 
@@ -29,6 +29,6 @@ python3 src/analytics/fraud_detection.py
 
 echo ""
 echo "============================================================"
-echo "✅ KPI analytics complete → data/analytics/"
+echo "[OK] KPI analytics complete -> data/analytics/"
 echo "============================================================"
 

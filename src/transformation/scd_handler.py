@@ -49,7 +49,7 @@ def build_dim_customer_scd2() -> pd.DataFrame:
     For all other customers:
     - Single row, valid_from = START_DATE, valid_to = None, is_current = True
     """
-    print("🔄 Building dim_customer with SCD Type 2 …")
+    print("[INFO] Building dim_customer with SCD Type 2 …")
 
     rows = []
     sk = 1  # surrogate key counter
@@ -110,7 +110,7 @@ def build_dim_customer_scd2() -> pd.DataFrame:
     # Stats
     scd_customers = len(SCD_MAP)
     total_rows = len(df)
-    print(f"  ✅ dim_customer built: {total_rows} rows "
+    print(f"  [OK] dim_customer built: {total_rows} rows "
           f"({scd_customers} customers with city change → 2 versions each)")
 
     return df
@@ -120,7 +120,7 @@ def save_dim_customer(df: pd.DataFrame) -> str:
     """Save dim_customer to Gold layer."""
     path = os.path.join(GOLD_DIR, "dim_customer.parquet")
     df.to_parquet(path, index=False, engine="pyarrow")
-    print(f"  💾 Saved → {path}")
+    print(f"  [OK] Saved → {path}")
     return path
 
 
@@ -163,18 +163,18 @@ def get_customer_sk(dim_customer: pd.DataFrame, customer_id: str, txn_date) -> i
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("📋 SCD TYPE 2 — dim_customer Builder")
+    print("SCD TYPE 2 — dim_customer Builder")
     print("=" * 60)
 
     dim_cust = build_dim_customer_scd2()
     save_dim_customer(dim_cust)
 
     # Show sample
-    print("\n📊 Sample rows (customers with city change):")
+    print("\nSample rows (customers with city change):")
     scd_ids = list(SCD_MAP.keys())[:3]
     sample = dim_cust[dim_cust["customer_id"].isin(scd_ids)]
     print(sample.to_string(index=False))
 
     print(f"\n{'=' * 60}")
-    print("✅ SCD Type 2 complete!")
+    print("[OK] SCD Type 2 complete!")
     print(f"{'=' * 60}")

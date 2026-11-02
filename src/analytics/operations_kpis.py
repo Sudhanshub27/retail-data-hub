@@ -42,7 +42,7 @@ def load_data():
         path = os.path.join(SILVER_DIR, filename)
         con.execute(f"CREATE TABLE {name} AS SELECT * FROM read_parquet('{path}')")
 
-    print("  ✓ All tables loaded into DuckDB")
+    print("  [OK] All tables loaded into DuckDB")
     return con
 
 
@@ -288,13 +288,13 @@ def kpi_reorder_alerts(con):
 
 def run_operations_kpis():
     print("=" * 60)
-    print("📦 OPERATIONS KPIs — Inventory, Logistics, Supply Chain")
+    print("OPERATIONS KPIs — Inventory, Logistics, Supply Chain")
     print("=" * 60)
 
-    print("\n📂 Loading data …")
+    print("\n[INFO] Loading data …")
     con = load_data()
 
-    print("\n🔢 Computing KPIs …")
+    print("\n[INFO] Computing KPIs …")
     kpis = {
         "computed_at": datetime.now().isoformat(),
         "inventory_turnover": kpi_inventory_turnover(con),
@@ -307,24 +307,24 @@ def run_operations_kpis():
     # Print summary
     stock = kpis["stockout_rate"]["overall"]
     delivery = kpis["delivery_times"]["overall"]
-    print(f"\n  📦 Stockout Rate    : {stock.get('stockout_pct', 0)}%")
-    print(f"  🚚 Avg Delivery    : {delivery.get('avg_delivery_days', 'N/A')} days")
-    print(f"  📦 Total Shipments : {delivery.get('total_shipments', 0):,}")
-    print(f"  ⚠️  Delayed         : {delivery.get('delayed', 0):,}")
-    print(f"  🔁 Returned        : {delivery.get('returned', 0):,}")
+    print(f"\n  Stockout Rate    : {stock.get('stockout_pct', 0)}%")
+    print(f"  Avg Delivery    : {delivery.get('avg_delivery_days', 'N/A')} days")
+    print(f"  Total Shipments : {delivery.get('total_shipments', 0):,}")
+    print(f"  Delayed         : {delivery.get('delayed', 0):,}")
+    print(f"  Returned        : {delivery.get('returned', 0):,}")
 
-    print(f"\n  📊 Turnover by Category (top 3):")
+    print(f"\n  Turnover by Category (top 3):")
     for cat in kpis["inventory_turnover"]["by_category"][:3]:
         print(f"     {cat['category']:18s} → {cat['turnover_ratio']}x")
 
-    print(f"\n  🚨 Reorder Alerts: {len(kpis['reorder_alerts'])} products below reorder level")
+    print(f"\n  Reorder Alerts: {len(kpis['reorder_alerts'])} products below reorder level")
 
     # Save
     output_path = os.path.join(ANALYTICS_DIR, "operations_kpis.json")
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(kpis, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     con.close()

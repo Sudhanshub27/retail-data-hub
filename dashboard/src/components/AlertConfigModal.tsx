@@ -11,7 +11,6 @@ import {
   X,
   Plus,
   Trash2,
-  Radio,
   Loader2,
 } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
@@ -148,16 +147,16 @@ export default function AlertConfigModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden z-10 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-600">
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-600">
               <Bell className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              <h2 className="text-base font-semibold text-slate-900 tracking-tight">
                 Automated Alerting & Webhooks
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -176,84 +175,86 @@ export default function AlertConfigModal() {
         {/* Content */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {savedSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-emerald-700 animate-slide-down">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs font-medium text-emerald-700 animate-slide-down">
               <CheckCircle2 className="w-4 h-4" /> {savedSuccess}
             </div>
           )}
 
           {testNotificationMsg && (
-            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-indigo-700 animate-slide-down">
-              <Radio className="w-4 h-4 animate-pulse text-indigo-600" /> {testNotificationMsg}
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-2 text-xs font-medium text-indigo-700 animate-slide-down">
+              <Send className="w-4 h-4" /> {testNotificationMsg}
             </div>
           )}
 
+          {/* Trigger Rules Header with Add Button */}
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Active Trigger Rules ({rules.filter((r) => r.enabled).length}/{rules.length})
+            <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500">
+              Configured Alert Triggers ({rules.length})
             </h3>
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" /> {showAddForm ? "Cancel" : "Add New Trigger"}
+              <Plus className="w-3.5 h-3.5" />
+              <span>{showAddForm ? "Cancel" : "Add Trigger"}</span>
             </button>
           </div>
 
-          {/* New Rule Creation Form */}
+          {/* Add Rule Inline Card */}
           {showAddForm && (
-            <div className="p-4 bg-slate-50 border border-indigo-200 rounded-xl space-y-3 animate-fade-in">
-              <h4 className="text-xs font-bold text-slate-900">Configure New Notification Rule</h4>
-              <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-4 bg-slate-50 border border-indigo-200 rounded-lg space-y-3 animate-slide-down">
+              <div className="text-xs font-semibold text-indigo-900">Configure New Alert Trigger:</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="text-[11px] text-slate-500 block mb-1">Rule Name</label>
+                  <label className="text-xs text-slate-500 block mb-1">Rule Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Stockout Risk Alert"
+                    placeholder="e.g. VIP Customer Churn Risk"
                     value={newRuleName}
                     onChange={(e) => setNewRuleName(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-white border border-slate-300 text-slate-900 rounded-lg p-2 text-xs focus:outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-500 block mb-1">Category</label>
+                  <label className="text-xs text-slate-500 block mb-1">Category</label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 text-slate-900 rounded-lg p-2 text-xs focus:outline-none focus:border-indigo-600 font-medium"
                   >
-                    <option value="Inventory">Inventory</option>
-                    <option value="Fraud">Fraud</option>
-                    <option value="Revenue">Revenue</option>
+                    <option value="Inventory">Inventory Supply Chain</option>
+                    <option value="Fraud">Fraud & Risk Watch</option>
+                    <option value="Revenue">Revenue & Outliers</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-500 block mb-1">Trigger Condition</label>
+                  <label className="text-xs text-slate-500 block mb-1">Trigger Condition</label>
                   <input
                     type="text"
-                    placeholder="e.g. Deviation > 2.5 Sigma"
+                    placeholder="e.g. Churn Risk > 75%"
                     value={newCondition}
                     onChange={(e) => setNewCondition(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-white border border-slate-300 text-slate-900 rounded-lg p-2 text-xs font-mono focus:outline-none focus:border-indigo-600"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-500 block mb-1">Notification Channel</label>
+                  <label className="text-xs text-slate-500 block mb-1">Notification Channel</label>
                   <select
                     value={newTarget}
                     onChange={(e) => setNewTarget(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 text-slate-900 rounded-lg p-2 text-xs focus:outline-none focus:border-indigo-600 font-medium"
                   >
-                    <option value="Slack">Slack</option>
-                    <option value="Email">Email</option>
-                    <option value="PagerDuty">PagerDuty</option>
-                    <option value="Webhook">Webhook</option>
+                    <option value="Slack">Slack Webhook</option>
+                    <option value="PagerDuty">PagerDuty Critical Event</option>
+                    <option value="Email">Executive Email Digest</option>
+                    <option value="Webhook">Custom JSON Webhook Endpoint</option>
                   </select>
                 </div>
               </div>
               <div className="flex justify-end pt-1">
                 <button
                   onClick={handleAddRule}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors"
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-colors"
                 >
                   Create Trigger Rule
                 </button>
@@ -266,7 +267,7 @@ export default function AlertConfigModal() {
             {rules.map((rule) => (
               <div
                 key={rule.id}
-                className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${
+                className={`p-3.5 border rounded-lg flex items-center justify-between transition-all ${
                   rule.enabled
                     ? "bg-slate-50 border-slate-200"
                     : "bg-slate-50/40 border-slate-200/40 opacity-50"
@@ -287,10 +288,10 @@ export default function AlertConfigModal() {
                     {rule.category === "Revenue" && <AlertTriangle className="w-4 h-4" />}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-900">{rule.name}</div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                      Trigger: <span className="text-slate-800 font-semibold">{rule.condition}</span> • Target:{" "}
-                      <span className="text-indigo-600 font-bold">{rule.target}</span>
+                    <div className="text-xs font-semibold text-slate-900">{rule.name}</div>
+                    <div className="text-xs text-slate-500 font-mono mt-0.5">
+                      Trigger: <span className="text-slate-800 font-medium">{rule.condition}</span> • Target:{" "}
+                      <span className="text-indigo-600 font-medium">{rule.target}</span>
                     </div>
                   </div>
                 </div>
@@ -299,7 +300,7 @@ export default function AlertConfigModal() {
                   <button
                     onClick={() => handleTestRule(rule)}
                     disabled={isTesting === rule.id}
-                    className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                    className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg flex items-center gap-1 transition-colors"
                   >
                     {isTesting === rule.id ? (
                       <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
@@ -323,34 +324,34 @@ export default function AlertConfigModal() {
                       onChange={() => toggleRule(rule.id)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-slate-100 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                   </label>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mt-4">
-            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3 mt-4">
+            <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-2">
               <Send className="w-3.5 h-3.5 text-indigo-600" /> Webhook Integration Settings
             </h4>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="text-[11px] text-slate-500 block mb-1">Slack Channel Webhook URL</label>
+                <label className="text-xs text-slate-500 block mb-1">Slack Channel Webhook URL</label>
                 <input
                   type="text"
                   value={slackWebhook}
                   onChange={(e) => setSlackWebhook(e.target.value)}
-                  className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2 font-mono text-[11px] focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2 font-mono text-xs focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="text-[11px] text-slate-500 block mb-1">PagerDuty Escalation Policy</label>
+                <label className="text-xs text-slate-500 block mb-1">PagerDuty Escalation Policy</label>
                 <input
                   type="text"
                   value={pagerdutyPolicy}
                   onChange={(e) => setPagerdutyPolicy(e.target.value)}
-                  className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2 font-mono text-[11px] focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2 font-mono text-xs focus:outline-none focus:border-indigo-500"
                 />
               </div>
             </div>
@@ -361,14 +362,14 @@ export default function AlertConfigModal() {
         <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
           <button
             onClick={() => setIsAlertConfigOpen(false)}
-            className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800"
+            className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-800"
           >
             Close
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
           >
             {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{isSaving ? "Saving..." : "Save Alert Preferences"}</span>

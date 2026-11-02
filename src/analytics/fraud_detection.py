@@ -41,7 +41,7 @@ def load_star_schema():
         path = os.path.join(GOLD_DIR, f"{table}.parquet")
         con.execute(f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{path}')")
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        print(f"  ✓ Loaded {table}: {count:,} rows")
+        print(f"  [OK] Loaded {table}: {count:,} rows")
 
     return con
 
@@ -290,30 +290,29 @@ def build_report(df):
 
 def run_fraud_detection():
     print("=" * 60)
-    print("🛡️  FRAUD DETECTION — Rule-Based Scoring Engine")
+    print("FRAUD DETECTION — Rule-Based Scoring Engine")
     print("=" * 60)
 
-    print("\n📂 Loading Gold layer …")
+    print("\n[INFO] Loading Gold layer …")
     con = load_star_schema()
 
-    print("\n🔎 Scoring transactions …")
+    print("\n[INFO] Scoring transactions …")
     scored_df = compute_fraud_scores(con)
 
-    print("\n📊 Building report …")
+    print("\n[INFO] Building report …")
     report = build_report(scored_df)
 
     # Print summary
     s = report["summary"]
-    print(f"\n  🧾 Total Transactions  : {s['total_transactions']:,}")
-    print(f"  🚨 Flagged Transactions: {s['flagged_transactions']:,}")
-    print(f"  📈 Fraud Rate          : {s['fraud_rate_pct']}%")
-    print(f"  ⚡ Avg Fraud Score     : {s['avg_fraud_score']}")
-    print(f"\n  📊 Risk Distribution:")
+    print(f"\n  Total Transactions  : {s['total_transactions']:,}")
+    print(f"  Flagged Transactions: {s['flagged_transactions']:,}")
+    print(f"  Fraud Rate          : {s['fraud_rate_pct']}%")
+    print(f"  Avg Fraud Score     : {s['avg_fraud_score']}")
+    print(f"\n  Risk Distribution:")
     for r in s["risk_distribution"]:
-        emoji = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(r["level"], "⚪")
-        print(f"     {emoji} {r['level']}: {r['count']}")
+        print(f"     [{r['level'].upper()}]: {r['count']}")
 
-    print(f"\n  📡 Signal Frequency:")
+    print(f"\n  Signal Frequency:")
     for sig in report["signal_frequency"][:6]:
         print(f"     → {sig['signal']}: {sig['count']}")
 
@@ -322,7 +321,7 @@ def run_fraud_detection():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     con.close()

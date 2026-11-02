@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 🚀 Start FastAPI Server
+# Start FastAPI Server
 # ============================================================
 set -e
 
@@ -9,9 +9,9 @@ cd "$PROJ_DIR"
 source .venv/bin/activate
 
 echo "============================================================"
-echo "🚀 STARTING API SERVER"
-echo "   URL  → http://localhost:8000"
-echo "   Docs → http://localhost:8000/docs"
+echo "STARTING API SERVER"
+echo "   URL  -> http://localhost:8000"
+echo "   Docs -> http://localhost:8000/docs"
 echo "============================================================"
 echo ""
 

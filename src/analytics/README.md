@@ -1,4 +1,4 @@
-# 📁 src/analytics/
+# src/analytics/
 
 ## Purpose
 KPI computation scripts that run on Gold layer star schema data using DuckDB.

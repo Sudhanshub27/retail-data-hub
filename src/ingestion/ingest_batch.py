@@ -48,7 +48,7 @@ def ingest_csv(
     output_dir = BRONZE_DIR / output_subdir
 
     # Read
-    logger.info(f"📂 Reading {source_path} ...")
+    logger.info(f"[INFO] Reading {source_path} ...")
     df = pd.read_csv(source_path)
     logger.info(f"   Raw shape: {df.shape[0]} rows × {df.shape[1]} columns")
 
@@ -82,7 +82,7 @@ def run_batch_ingestion() -> list:
 
     summaries = []
     logger.info("=" * 60)
-    logger.info("🚀 Starting Batch Ingestion Pipeline")
+    logger.info("Starting Batch Ingestion Pipeline")
     logger.info("=" * 60)
 
     for ds in datasets:
@@ -90,7 +90,7 @@ def run_batch_ingestion() -> list:
             summary = ingest_csv(**ds)
             summaries.append(summary)
         except Exception as e:
-            logger.error(f"✗ Failed to ingest {ds['file_name']}: {e}")
+            logger.error(f"[ERROR] Failed to ingest {ds['file_name']}: {e}")
             summaries.append({
                 "dataset": ds["schema_name"],
                 "source": ds["file_name"],
@@ -101,10 +101,10 @@ def run_batch_ingestion() -> list:
     log_path = BRONZE_DIR / "batch_ingestion_log.json"
     with open(log_path, "w") as f:
         json.dump(summaries, f, indent=2)
-    logger.info(f"\n📋 Ingestion log saved → {log_path}")
+    logger.info(f"\n[OK] Ingestion log saved → {log_path}")
 
     logger.info("=" * 60)
-    logger.info(f"✅ Batch ingestion complete — {len(summaries)} datasets processed")
+    logger.info(f"[OK] Batch ingestion complete — {len(summaries)} datasets processed")
     logger.info("=" * 60)
 
     return summaries

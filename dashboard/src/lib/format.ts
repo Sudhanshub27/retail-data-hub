@@ -5,9 +5,9 @@
 
 /** Format a number as Indian currency (₹) with Cr/L shorthand */
 export function fmtCurrency(n: number): string {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
 /** Alias used in Overview page */
@@ -15,20 +15,28 @@ export const fmt = fmtCurrency;
 
 /** Format a number with Indian locale grouping */
 export function fmtNum(n: number): string {
-    return n.toLocaleString("en-IN");
+  return n.toLocaleString("en-IN");
+}
+
+/** Format a number in compact human-readable notation (e.g., 1.2K, 3.4L, 2.5 Cr) */
+export function fmtCompact(n: number): string {
+  if (n >= 10000000) return `${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toLocaleString("en-IN");
 }
 
 /** Format a YYYY-MM string to "Jan '24" */
 export function fmtMonthLabel(val: string): string {
-    const [y, m] = val.split("-");
-    if (!y || !m) return val;
-    return new Date(+y, +m - 1).toLocaleDateString("en", {
-        month: "short",
-        year: "2-digit",
-    });
+  const [y, m] = val.split("-");
+  if (!y || !m) return val;
+  return new Date(+y, +m - 1).toLocaleDateString("en", {
+    month: "short",
+    year: "2-digit",
+  });
 }
 
 /** Format percentage with 1 decimal */
 export function fmtPct(n: number): string {
-    return `${n.toFixed(1)}%`;
+  return `${n.toFixed(1)}%`;
 }

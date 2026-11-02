@@ -22,7 +22,8 @@ export default function DashboardContainer({ children }: { children: React.React
           {/* Mobile Sidebar Backdrop */}
           {isMobileSidebarOpen && (
             <div
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[90] lg:hidden animate-fade-in"
+              data-html2canvas-ignore="true"
+              className="fixed inset-0 bg-slate-900/40 z-[90] lg:hidden animate-fade-in"
               onClick={() => setIsMobileSidebarOpen(false)}
             />
           )}
@@ -43,9 +44,11 @@ export default function DashboardContainer({ children }: { children: React.React
         </div>
 
         {/* Global Modals */}
-        <CmdKModal />
-        <UploadModal />
-        <AlertConfigModal />
+        <div data-html2canvas-ignore="true">
+          <CmdKModal />
+          <UploadModal />
+          <AlertConfigModal />
+        </div>
       </div>
     </StoreProvider>
   );

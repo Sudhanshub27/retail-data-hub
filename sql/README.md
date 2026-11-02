@@ -1,4 +1,4 @@
-# 📁 sql/
+# sql/
 
 ## Purpose
 Pure SQL versions of all KPI queries. These run against gold Parquet files via **DuckDB** and serve as a standalone deliverable showing SQL proficiency.

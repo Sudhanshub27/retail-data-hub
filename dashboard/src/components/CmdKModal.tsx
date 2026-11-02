@@ -25,7 +25,7 @@ const SEARCH_ITEMS: SearchResult[] = [
   { id: "p-fraud", category: "Pages", title: "Fraud & Risk Watch", subtitle: "Real-time suspicious transaction stream & rules", href: "/fraud", badge: "Critical", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
   { id: "p-logistics", category: "Pages", title: "Logistics & Fulfillment", subtitle: "Carrier performance gauges & fulfillment funnel", href: "/logistics" },
   { id: "p-market-basket", category: "Pages", title: "Market Basket Analysis", subtitle: "Product affinity network & association rules", href: "/market-basket" },
-  { id: "p-live", category: "Pages", title: "Real-time Operations Stream", subtitle: "High-frequency streaming log & QPS latency", href: "/live", badge: "Live Sync", badgeColor: "bg-cyan-50 text-cyan-700 border border-cyan-200" },
+  { id: "p-live", category: "Pages", title: "Real-time Operations Stream", subtitle: "High-frequency streaming log & QPS latency", href: "/live", badge: "Live Sync", badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
   { id: "p-chat", category: "Pages", title: "Retail AI Assistant & SQL", subtitle: "Conversational SQL bot & chart generator", href: "/chat" },
   { id: "p-data-quality", category: "Pages", title: "Data Quality & Lineage", subtitle: "Freshness SLA monitors & DAG visualizer", href: "/data-quality" },
   { id: "p-tables", category: "Pages", title: "Raw Data Explorer", subtitle: "High-density multi-column datagrid", href: "/tables" },
@@ -82,12 +82,12 @@ export default function CmdKModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-16 sm:pt-24 px-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-16 sm:pt-24 px-4 bg-slate-900/40 animate-fade-in">
       <div
         className="fixed inset-0"
         onClick={() => setIsCmdKOpen(false)}
       />
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[80vh]">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden z-10 flex flex-col max-h-[80vh]">
         {/* Search Header */}
         <div className="flex items-center px-4 py-3.5 border-b border-slate-200 bg-white">
           <Search className="w-5 h-5 text-indigo-600 mr-3 flex-shrink-0" />
@@ -121,7 +121,7 @@ export default function CmdKModal() {
               }}
               className={`px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
                 activeCategory === cat
-                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold"
+                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
@@ -134,7 +134,7 @@ export default function CmdKModal() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredItems.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-sm">
-              No matching records found for "{query}"
+              No matching records found for &quot;{query}&quot;
             </div>
           ) : (
             filteredItems.map((item, idx) => {
@@ -144,9 +144,9 @@ export default function CmdKModal() {
                   key={item.id}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-150 ${
+                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-150 ${
                     isSelected
-                      ? "bg-indigo-50/80 border border-indigo-200 text-slate-900 shadow-xs"
+                      ? "bg-indigo-50/80 border border-indigo-200 text-slate-900"
                       : "hover:bg-slate-50 text-slate-700"
                   }`}
                 >
@@ -160,7 +160,7 @@ export default function CmdKModal() {
                           : item.category === "Fraud"
                           ? "bg-rose-50 text-rose-600 border border-rose-100"
                           : item.category === "Anomalies"
-                          ? "bg-cyan-50 text-cyan-600 border border-cyan-100"
+                          ? "bg-amber-50 text-amber-600 border border-amber-100"
                           : "bg-emerald-50 text-emerald-600 border border-emerald-100"
                       }`}
                     >
@@ -177,7 +177,7 @@ export default function CmdKModal() {
                         </span>
                         {item.badge && (
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            className={`px-1.5 py-0.5 rounded-lg text-xs font-medium ${
                               item.badgeColor || "bg-slate-100 text-slate-700"
                             }`}
                           >
@@ -191,7 +191,7 @@ export default function CmdKModal() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-400 flex-shrink-0 ml-2">
-                    <span className="text-[11px] font-mono uppercase bg-slate-100 px-2 py-0.5 rounded text-slate-600 border border-slate-200 font-semibold">
+                    <span className="text-xs font-mono uppercase bg-slate-100 px-2 py-0.5 rounded-lg text-slate-600 border border-slate-200 font-medium">
                       {item.category}
                     </span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -206,13 +206,13 @@ export default function CmdKModal() {
         <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-700 shadow-xs">↑↓</kbd> Navigate
+              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700">↑↓</kbd> Navigate
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-700 shadow-xs">↵</kbd> Select
+              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700">↵</kbd> Select
             </span>
           </div>
-          <span className="flex items-center gap-1 text-indigo-600 font-mono text-[11px] font-bold">
+          <span className="flex items-center gap-1 text-indigo-600 font-mono text-xs font-semibold">
             <Command className="w-3 h-3" /> Omniprompt Engine
           </span>
         </div>

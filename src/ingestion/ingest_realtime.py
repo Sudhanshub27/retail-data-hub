@@ -36,7 +36,7 @@ def read_json_stream(file_path: Path, batch_size: int = 1000):
     with open(file_path, "r") as f:
         records = json.load(f)
 
-    logger.info(f"📡 Simulating stream: {len(records)} records, batch_size={batch_size}")
+    logger.info(f"[INFO] Simulating stream: {len(records)} records, batch_size={batch_size}")
 
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
@@ -62,7 +62,7 @@ def ingest_json_stream(
     source_path = RAW_DIR / file_name
     output_dir = BRONZE_DIR / output_subdir
 
-    logger.info(f"📂 Reading {source_path} as simulated stream ...")
+    logger.info(f"[INFO] Reading {source_path} as simulated stream ...")
 
     # Collect all micro-batches into one DataFrame
     all_records = []
@@ -95,23 +95,23 @@ def run_realtime_ingestion() -> dict:
     """Run the simulated real-time ingestion for web orders."""
 
     logger.info("=" * 60)
-    logger.info("🚀 Starting Real-Time (Simulated) Ingestion Pipeline")
+    logger.info("Starting Real-Time (Simulated) Ingestion Pipeline")
     logger.info("=" * 60)
 
     try:
         summary = ingest_json_stream()
     except Exception as e:
-        logger.error(f"✗ Real-time ingestion failed: {e}")
+        logger.error(f"[ERROR] Real-time ingestion failed: {e}")
         summary = {"dataset": "web_orders", "error": str(e)}
 
     # Write ingestion log
     log_path = BRONZE_DIR / "realtime_ingestion_log.json"
     with open(log_path, "w") as f:
         json.dump(summary, f, indent=2)
-    logger.info(f"\n📋 Ingestion log saved → {log_path}")
+    logger.info(f"\n[OK] Ingestion log saved → {log_path}")
 
     logger.info("=" * 60)
-    logger.info("✅ Real-time ingestion complete")
+    logger.info("[OK] Real-time ingestion complete")
     logger.info("=" * 60)
 
     return summary

@@ -1,4 +1,4 @@
-# 📁 src/quality/
+# src/quality/
 
 ## Purpose
 Automated data quality framework that validates data at every pipeline stage and produces evidence reports — a key hackathon deliverable.

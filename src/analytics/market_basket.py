@@ -45,7 +45,7 @@ def load_sales():
 
     # Join to get product names
     sales = fact_sales.merge(dim_product, on="product_sk", how="left")
-    print(f"  ✓ Loaded {len(sales):,} sales with product details")
+    print(f"  [OK] Loaded {len(sales):,} sales with product details")
     return sales
 
 
@@ -61,7 +61,7 @@ def standard_basket_analysis(sales_df, min_support=0.005, min_confidence=0.05):
     from mlxtend.frequent_patterns import apriori, association_rules
     from mlxtend.preprocessing import TransactionEncoder
 
-    print("  🛒 Building transaction baskets …")
+    print("  [INFO] Building transaction baskets …")
 
     # Group by transaction to get baskets
     baskets = sales_df.groupby("transaction_id")["product_name"].apply(list).tolist()
@@ -71,7 +71,7 @@ def standard_basket_analysis(sales_df, min_support=0.005, min_confidence=0.05):
     print(f"     {len(multi_item_baskets):,} multi-item transactions (out of {len(baskets):,} total)")
 
     if len(multi_item_baskets) < 10:
-        print("     ⚠️  Too few multi-item transactions for meaningful analysis")
+        print("     [WARN] Too few multi-item transactions for meaningful analysis")
         return {"itemsets": [], "rules": [], "stats": {"multi_item_baskets": len(multi_item_baskets)}}
 
     # One-hot encode
@@ -80,11 +80,11 @@ def standard_basket_analysis(sales_df, min_support=0.005, min_confidence=0.05):
     basket_df = pd.DataFrame(te_array, columns=te.columns_)
 
     # Run Apriori
-    print(f"  ⚡ Running Apriori (min_support={min_support}) …")
+    print(f"  [INFO] Running Apriori (min_support={min_support}) …")
     frequent_items = apriori(basket_df, min_support=min_support, use_colnames=True)
 
     if frequent_items.empty:
-        print("     ⚠️  No frequent itemsets found — try lowering min_support")
+        print("     [WARN] No frequent itemsets found — try lowering min_support")
         return {"itemsets": [], "rules": [], "stats": {"multi_item_baskets": len(multi_item_baskets)}}
 
     print(f"     Found {len(frequent_items)} frequent itemsets")
@@ -139,13 +139,13 @@ def cross_channel_analysis(sales_df, min_support=0.008, min_confidence=0.05):
     from mlxtend.frequent_patterns import apriori, association_rules
     from mlxtend.preprocessing import TransactionEncoder
 
-    print("  🔗 Building cross-channel customer baskets …")
+    print("  [INFO] Building cross-channel customer baskets …")
 
     # Create baskets per customer with channel prefix
     def make_channel_basket(group):
         items = []
         for _, row in group.iterrows():
-            channel_prefix = "🏪" if row["channel"] == "POS" else "🌐"
+            channel_prefix = "[POS]" if row["channel"] == "POS" else "[WEB]"
             items.append(f"{channel_prefix} {row['product_name']}")
         return list(set(items))  # unique items per customer
 
@@ -154,15 +154,15 @@ def cross_channel_analysis(sales_df, min_support=0.008, min_confidence=0.05):
     # Only keep customers who bought from BOTH channels
     cross_channel_baskets = []
     for basket in customer_baskets:
-        has_pos = any(item.startswith("🏪") for item in basket)
-        has_web = any(item.startswith("🌐") for item in basket)
+        has_pos = any(item.startswith("[POS]") for item in basket)
+        has_web = any(item.startswith("[WEB]") for item in basket)
         if has_pos and has_web and len(basket) >= 2:
             cross_channel_baskets.append(basket)
 
     print(f"     {len(cross_channel_baskets):,} cross-channel customers found")
 
     if len(cross_channel_baskets) < 10:
-        print("     ⚠️  Too few cross-channel customers")
+        print("     [WARN] Too few cross-channel customers")
         return {"rules": [], "stats": {"cross_channel_customers": len(cross_channel_baskets)}}
 
     # One-hot encode
@@ -171,7 +171,7 @@ def cross_channel_analysis(sales_df, min_support=0.008, min_confidence=0.05):
     basket_df = pd.DataFrame(te_array, columns=te.columns_)
 
     # Run Apriori
-    print(f"  ⚡ Running cross-channel Apriori (min_support={min_support}) …")
+    print(f"  [INFO] Running cross-channel Apriori (min_support={min_support}) …")
     frequent = apriori(basket_df, min_support=min_support, use_colnames=True)
 
     if frequent.empty:
@@ -183,8 +183,8 @@ def cross_channel_analysis(sales_df, min_support=0.008, min_confidence=0.05):
     # Filter: only rules where antecedent and consequent are different channels
     cross_rules = []
     for _, row in rules.iterrows():
-        ant_channels = {item[:2] for item in row["antecedents"]}
-        con_channels = {item[:2] for item in row["consequents"]}
+        ant_channels = {item.split()[0] for item in row["antecedents"]}
+        con_channels = {item.split()[0] for item in row["consequents"]}
 
         if ant_channels != con_channels:  # different channels
             cross_rules.append({
@@ -217,7 +217,7 @@ def category_basket_analysis(sales_df, min_support=0.03, min_confidence=0.1):
     from mlxtend.frequent_patterns import apriori, association_rules
     from mlxtend.preprocessing import TransactionEncoder
 
-    print("  📦 Building category baskets …")
+    print("  [INFO] Building category baskets …")
 
     # Group by transaction → list of categories
     baskets = sales_df.groupby("transaction_id")["category"].apply(
@@ -267,19 +267,19 @@ def category_basket_analysis(sales_df, min_support=0.03, min_confidence=0.1):
 
 def run_market_basket():
     print("=" * 60)
-    print("🛒 MARKET BASKET ANALYSIS — Omnichannel Apriori")
+    print("MARKET BASKET ANALYSIS — Omnichannel Apriori")
     print("=" * 60)
 
-    print("\n📂 Loading Gold layer …")
+    print("\n[INFO] Loading Gold layer …")
     sales = load_sales()
 
-    print("\n🔬 Analysis 1: Standard Basket (same transaction) …")
+    print("\n[INFO] Analysis 1: Standard Basket (same transaction) …")
     standard = standard_basket_analysis(sales)
 
-    print(f"\n🔬 Analysis 2: Cross-Channel (same customer, POS ↔ Web) …")
+    print(f"\n[INFO] Analysis 2: Cross-Channel (same customer, POS ↔ Web) …")
     cross_channel = cross_channel_analysis(sales)
 
-    print(f"\n🔬 Analysis 3: Category-Level Associations …")
+    print(f"\n[INFO] Analysis 3: Category-Level Associations …")
     category = category_basket_analysis(sales)
 
     results = {
@@ -291,7 +291,7 @@ def run_market_basket():
 
     # Print highlights
     print(f"\n{'=' * 60}")
-    print(f"📊 RESULTS SUMMARY")
+    print(f"RESULTS SUMMARY")
     print(f"{'=' * 60}")
 
     print(f"\n  Standard Basket:")
@@ -318,7 +318,7 @@ def run_market_basket():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, default=str)
 
-    print(f"\n💾 Saved → {output_path}")
+    print(f"\n[OK] Saved → {output_path}")
     print("=" * 60)
 
     return results

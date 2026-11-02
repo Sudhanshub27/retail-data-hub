@@ -1,4 +1,4 @@
-# 📁 src/transformation/
+# src/transformation/
 
 ## Purpose
 Transformation scripts that move data through the Medallion layers: **Bronze → Silver** (cleaning) and **Silver → Gold** (star schema modeling).
