@@ -2,314 +2,441 @@
 chat_engine.py
 ==============
 Manages the conversation logic for the AI Retail Assistant.
-Uses Gemini models to interpret retail data and return structured responses
-(Text, Tables, Charts, and DuckDB SQL queries).
+Uses the modern google-genai SDK and DuckDB to execute read-only queries
+directly against the Gold analytics layer and return verified data.
 """
 
 import os
+import re
 import json
-import google.generativeai as genai
-from datetime import datetime
+import logging
+from typing import Optional, Tuple, Any, List, Dict
+import duckdb
+import pandas as pd
 from dotenv import load_dotenv
 
-# ── configuration ───────────────────────────────────────────────────
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-load_dotenv(os.path.join(ROOT, ".env"))
+# Set up logger
+logger = logging.getLogger("chat_engine")
+logger.setLevel(logging.INFO)
 
-ANALYTICS_DIR = os.path.join(ROOT, "data", "analytics")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# Load environment variables
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+load_dotenv(os.path.join(ROOT_DIR, ".env"))
 
-# Configure Gemini
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as err:
-        print(f"[WARN] Gemini configuration warning: {err}")
+GOLD_DIR = os.path.join(ROOT_DIR, "data", "gold")
+ANALYTICS_DIR = os.path.join(ROOT_DIR, "data", "analytics")
 
-# ── platform meta-context ──────────────────────────────────────────
-PLATFORM_KNOWLEDGE = {
-    "project_name": "Retail Data Hub",
-    "architecture": "Medallion Architecture (Raw → Bronze → Silver → Gold)",
-    "data_pipeline": "DuckDB-powered ELT using Apache Parquet. Data moves from CSV/JSON (Bronze) to Cleaned Parquet (Silver) to Analytics-ready Star Schema (Gold).",
-    "tech_stack": {
-        "language": "Python 3.9+, TypeScript",
-        "storage": "Apache Parquet",
-        "query_engine": "DuckDB (In-process OLAP)",
-        "api": "FastAPI + Uvicorn",
-        "ml": "PyTorch (LSTM for Demand Forecasting), mlxtend (Apriori for Market Basket Analysis)",
-        "frontend": "Next.js 14 App Router, Tailwind CSS, Recharts, Framer Motion"
-    },
-    "dashboard_pages": {
-        "Overview": "Executive summary with top KPIs and revenue trends.",
-        "Sales": "Detailed revenue analysis by city, category, and month.",
-        "Logistics": "Delivery performance and carrier efficiency metrics.",
-        "Customers": "Deep dive into RFM segments, retention, and CLV.",
-        "Inventory": "Stock levels, turnover ratios, and stockout alerts.",
-        "Forecast": "AI-powered 30-day revenue prediction using LSTM.",
-        "Market Basket": "Association rule mining to find products bought together.",
-        "Data Quality": "Automated checks for nulls, duplicates, and negative values."
-    }
-}
+FORBIDDEN_SQL_PATTERN = re.compile(
+    r"\b(DROP|DELETE|UPDATE|INSERT|ATTACH|DETACH|COPY|PRAGMA|ALTER|CREATE|EXEC|EXECUTE|EXPORT|CALL|VACUUM|LOAD)\b",
+    re.IGNORECASE,
+)
+
+FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+
+
+def _format_cell_value(val: Any) -> Any:
+    """Format DataFrame values safely for JSON serialization."""
+    if val is None or pd.isna(val):
+        return None
+    if isinstance(val, (pd.Timestamp,)):
+        return val.isoformat()
+    if isinstance(val, float):
+        if val.is_integer():
+            return int(val)
+        return round(val, 2)
+    if hasattr(val, "item"):
+        return val.item()
+    return val
+
 
 class ChatEngine:
+    """
+    Business Intelligence Assistant powered by google-genai and DuckDB.
+    Initialized lazily so missing keys or data do not crash API startup.
+    """
+
     def __init__(self):
-        self.data_snapshot = self._load_data_snapshot()
+        self._con: Optional[duckdb.DuckDBPyConnection] = None
+        self._schema_text: Optional[str] = None
+        self._tables_registered: bool = False
 
-    def _load_data_snapshot(self):
-        """Loads a comprehensive snapshot from all analytics layers."""
-        snapshot = {}
-        files = {
-            "commercial": "commercial_kpis.json",
-            "operations": "operations_kpis.json",
-            "customer": "customer_kpis.json",
-            "forecast": "demand_forecast.json",
-            "market_basket": "market_basket.json",
-            "summary": "executive_summary.json"
-        }
-        
-        for key, filename in files.items():
-            path = os.path.join(ANALYTICS_DIR, filename)
-            if os.path.exists(path):
+    def is_data_available(self) -> bool:
+        """Check if required Gold parquet files exist."""
+        fact_path = os.path.join(GOLD_DIR, "fact_sales.parquet")
+        return os.path.exists(fact_path)
+
+    def _init_duckdb(self) -> Tuple[bool, str]:
+        """Lazy initialization of DuckDB in-memory views over Gold parquet tables."""
+        if self._tables_registered and self._con is not None:
+            return True, ""
+
+        if not self.is_data_available():
+            return False, (
+                "Analytics Gold data is missing. Please run 'scripts/generation.sh', "
+                "'scripts/ingestion.sh', and 'scripts/transform.sh' to generate required data."
+            )
+
+        try:
+            con = duckdb.connect(":memory:")
+            tables = ["fact_sales", "dim_date", "dim_product", "dim_store", "dim_customer"]
+            schema_lines = []
+
+            for tbl in tables:
+                p = os.path.join(GOLD_DIR, f"{tbl}.parquet")
+                if os.path.exists(p):
+                    con.execute(f"CREATE VIEW {tbl} AS SELECT * FROM '{p}'")
+                    cols = con.execute(f"DESCRIBE {tbl}").fetchall()
+                    col_str = ", ".join([f"{c[0]} ({c[1]})" for c in cols])
+                    schema_lines.append(f"Table {tbl}:\n  Columns: {col_str}")
+
+            self._con = con
+            self._schema_text = "\n".join(schema_lines)
+            self._tables_registered = True
+            return True, ""
+        except Exception as e:
+            logger.exception("Failed to initialize DuckDB Gold views: %s", e)
+            return False, f"Failed to initialize database engine: {str(e)}"
+
+    def _validate_sql(self, sql_query: str) -> Tuple[str, Optional[str]]:
+        """
+        Validate that the query is read-only, single statement, and enforce LIMIT <= 200.
+        """
+        cleaned = sql_query.strip().strip(";")
+        if not cleaned:
+            return "", "Empty SQL query."
+
+        # Reject multiple statements (semicolon outside quotes)
+        statements = [s.strip() for s in cleaned.split(";") if s.strip()]
+        if len(statements) > 1:
+            return "", "Multiple SQL statements are not permitted."
+
+        query = statements[0]
+
+        # Must start with SELECT or WITH
+        if not re.match(r"^(SELECT|WITH)\b", query, re.IGNORECASE):
+            return "", "Only SELECT or WITH queries are allowed."
+
+        # Check for forbidden mutation or administration keywords
+        forbidden_match = FORBIDDEN_SQL_PATTERN.search(query)
+        if forbidden_match:
+            return "", f"Forbidden SQL keyword '{forbidden_match.group(1)}' detected."
+
+        # Enforce LIMIT <= 200
+        limit_match = re.search(r"\bLIMIT\s+(\d+)", query, re.IGNORECASE)
+        if limit_match:
+            limit_val = int(limit_match.group(1))
+            if limit_val > 200 or limit_val <= 0:
+                query = query[: limit_match.start(1)] + "200" + query[limit_match.end(1) :]
+        else:
+            query = f"{query} LIMIT 200"
+
+        return query, None
+
+    def _execute_sql(self, sql: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+        """Execute validated query against DuckDB read-only views."""
+        if not self._con:
+            ok, err = self._init_duckdb()
+            if not ok:
+                return None, err
+
+        try:
+            df = self._con.execute(sql).df()
+            return df, None
+        except Exception as e:
+            logger.warning("DuckDB query failed: %s | SQL: %s", e, sql)
+            return None, str(e)
+
+    def _build_data_structures(
+        self, df: pd.DataFrame, suggested_type: str = "table"
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]], str]:
+        """Convert DuckDB DataFrame results to tableData and chartData."""
+        if df.empty:
+            return {"headers": list(df.columns), "rows": []}, None, "table"
+
+        # 1. tableData
+        headers = list(df.columns)
+        rows = [
+            [_format_cell_value(val) for val in row]
+            for row in df.itertuples(index=False)
+        ]
+        table_data = {"headers": headers, "rows": rows}
+
+        # 2. chartData
+        chart_data: Optional[List[Dict[str, Any]]] = None
+        data_type = suggested_type or "table"
+
+        if len(df.columns) >= 2:
+            # Locate label column and numeric metric column
+            label_col = None
+            metric_col = None
+
+            for col in df.columns:
+                if not label_col and (
+                    pd.api.types.is_string_dtype(df[col])
+                    or pd.api.types.is_object_dtype(df[col])
+                    or pd.api.types.is_datetime64_any_dtype(df[col])
+                ):
+                    label_col = col
+                elif not metric_col and pd.api.types.is_numeric_dtype(df[col]):
+                    metric_col = col
+
+            if not label_col:
+                label_col = df.columns[0]
+            if not metric_col and len(df.columns) > 1:
+                metric_col = df.columns[1]
+
+            if label_col and metric_col and pd.api.types.is_numeric_dtype(df[metric_col]):
+                top_slice = df.head(15)
+                chart_data = []
+                for _, r in top_slice.iterrows():
+                    val = r[metric_col]
+                    val_num = round(float(val), 2) if pd.notna(val) else 0.0
+                    name_str = str(r[label_col]) if pd.notna(r[label_col]) else "Unknown"
+                    chart_data.append({"name": name_str, "value": val_num})
+                data_type = "chart"
+
+        return table_data, chart_data, data_type
+
+    def _parse_json_defensively(self, text: str) -> Dict[str, Any]:
+        """Strip markdown fences and defensively parse structured JSON."""
+        clean = text.strip()
+        if "```json" in clean:
+            clean = clean.split("```json", 1)[1].split("```", 1)[0].strip()
+        elif "```" in clean:
+            clean = clean.split("```", 1)[1].split("```", 1)[0].strip()
+
+        try:
+            parsed = json.loads(clean)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            # Fall back to finding first { and last }
+            start = clean.find("{")
+            end = clean.rfind("}")
+            if start != -1 and end != -1 and end > start:
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if key == "commercial":
-                            snapshot["revenue"] = data.get("revenue", {}).get("summary", {})
-                            snapshot["monthly_revenue_trend"] = data.get("revenue", {}).get("monthly_trend", [])[-12:]
-                            snapshot["top_cities"] = data.get("city_sales", [])[:10]
-                            snapshot["category_performance"] = data.get("category_sales", [])
-                        elif key == "operations":
-                            snapshot["operations_summary"] = {
-                                "stockout_rate": data.get("stockout_rate", {}).get("overall", {}).get("stockout_pct"),
-                                "avg_delivery": data.get("delivery_times", {}).get("overall", {}).get("avg_delivery_days")
-                            }
-                            snapshot["inventory_turnover"] = data.get("inventory_turnover", {}).get("by_category", [])
-                            snapshot["frequently_stocked_out"] = data.get("stockout_rate", {}).get("frequently_stocked_out", [])[:5]
-                        elif key == "customer":
-                            snapshot["customer_health"] = {
-                                "total_unique": data.get("new_vs_returning", {}).get("summary", {}).get("total_unique_customers"),
-                                "monthly_mix": data.get("new_vs_returning", {}).get("monthly_trend", [])[-6:]
-                            }
-                            snapshot["clv_segments"] = data.get("clv", {}).get("segments", {})
-                        elif key == "forecast":
-                            snapshot["forecast_total_30d"] = data.get("summary", {}).get("total_30d_predicted_revenue")
-                            snapshot["forecast_by_category"] = data.get("category_summary", [])
-                        elif key == "market_basket":
-                            snapshot["basket_rules"] = data.get("category_basket", {}).get("rules", [])[:10]
-                        elif key == "summary":
-                            snapshot["executive_kpis"] = data.get("kpis", {})
-                except Exception as e:
-                    print(f"[ERROR] Error loading {filename}: {e}")
-        
-        return snapshot
+                    parsed = json.loads(clean[start : end + 1])
+                    if isinstance(parsed, dict):
+                        return parsed
+                except Exception:
+                    pass
 
-    def ask(self, user_query: str, history: list = None):
-        """AI-first query handler with Universal USP Platform Knowledge."""
-        
-        system_instruction = f"""You are the Retail Data Hub Lead Executive AI Consultant & SQL Architect.
-You have real-time access to our Medallion Architecture (DuckDB OLAP + Parquet Storage) and gold layer analytics.
-
-YOUR MISSION:
-1. Provide a sharp, consultative executive answer in Markdown text.
-2. Provide an exact DuckDB SQL query against our Gold star schema (`gold.fact_sales`, `gold.dim_product`, `gold.dim_store`, `gold.dim_customer`).
-3. Return structured tabular and chart data.
-
-CRITICAL OUTPUT REQUIREMENT:
-Your response MUST be strictly valid JSON ONLY (no surrounding text outside the JSON object):
-{{
-  "text": "Executive summary and data interpretation in Markdown.",
-  "sqlQuery": "SELECT category, SUM(net_revenue) FROM gold.fact_sales GROUP BY category;",
-  "data_type": "chart" | "table" | "text",
-  "chartData": [
-    {{"name": "Electronics", "value": 184000}},
-    {{"name": "Apparel", "value": 142000}}
-  ],
-  "tableData": {{
-    "headers": ["Category", "Revenue", "Margin %"],
-    "rows": [
-      ["Electronics", "$184,000", "18.4%"],
-      ["Apparel", "$142,000", "22.1%"]
-    ]
-  }}
-}}
-
-ANALYTICS DATA SNAPSHOT:
-{json.dumps(self.data_snapshot, indent=1)}
-"""
-
-        # List of official Gemini models
-        models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.0-pro']
-        
-        if GEMINI_API_KEY:
-            for model_name in models:
-                try:
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        system_instruction=system_instruction
-                    )
-                    
-                    response = model.generate_content(user_query)
-                    text = response.text.strip()
-                    
-                    if "```json" in text:
-                        text = text.split("```json")[1].split("```")[0].strip()
-                    elif "```" in text:
-                        text = text.split("```")[1].split("```")[0].strip()
-                    elif "{" in text:
-                        start = text.find("{")
-                        end = text.rfind("}")
-                        if start != -1 and end != -1:
-                            text = text[start:end+1]
-
-                    parsed = json.loads(text)
-                    print(f"[OK] AI Success: Responded using {model_name}")
-                    return parsed
-                except Exception as e:
-                    print(f"[WARN] {model_name} Attempt failed: {e}")
-                    continue
-
-        return self._dynamic_query_engine(user_query)
-
-    def _dynamic_query_engine(self, query: str):
-        """Advanced dynamic query engine extracting real data from Gold snapshot."""
-        q = query.lower()
-        s = self.data_snapshot
-        
-        # 1. Margin / Return Rate / Low Margin SKUs
-        if any(w in q for w in ["margin", "sku", "return", "low-margin"]):
-            return {
-                "text": "Analyzed POS transaction log in DuckDB Gold layer. Here are the top SKUs with profit margin under 15% and return rate exceeding 8%:",
-                "sqlQuery": """SELECT 
-  sku_code,
-  product_name,
-  category,
-  ROUND(margin_pct * 100, 1) AS margin_pct,
-  ROUND(return_rate * 100, 1) AS return_rate
-FROM gold.fact_sales s
-JOIN gold.dim_product p ON s.product_sk = p.product_sk
-WHERE margin_pct < 0.15 AND return_rate > 0.08
-ORDER BY return_rate DESC
-LIMIT 5;""",
-                "data_type": "table",
-                "tableData": {
-                  "headers": ["SKU Code", "Category", "Margin %", "Return Rate %"],
-                  "rows": [
-                    ["SKU-9901", "Electronics", "12.4%", "14.2%"],
-                    ["SKU-4012", "Home Appliances", "10.8%", "11.5%"],
-                    ["SKU-1829", "Fashion & Apparel", "14.1%", "9.8%"],
-                    ["SKU-7721", "Accessories", "13.5%", "8.9%"],
-                    ["SKU-2041", "Kitchenware", "11.2%", "8.2%"]
-                  ]
-                },
-                "chartData": [
-                  {"name": "SKU-9901", "value": 14.2},
-                  {"name": "SKU-4012", "value": 11.5},
-                  {"name": "SKU-1829", "value": 9.8},
-                  {"name": "SKU-7721", "value": 8.9},
-                  {"name": "SKU-2041", "value": 8.2}
-                ]
-            }
-
-        # 2. Demand / Inventory / Q4 Forecast / Turnover
-        if any(w in q for w in ["q4", "demand", "inventory", "stock", "turnover", "shortfall"]):
-            turnover_data = s.get("inventory_turnover", [])
-            chart_list = [{"name": item.get("category", "General"), "value": float(item.get("turnover_ratio", 4.2))} for item in turnover_data[:5]]
-            if not chart_list:
-                chart_list = [
-                    {"name": "Electronics", "value": 14500},
-                    {"name": "Apparel", "value": 22000},
-                    {"name": "Home Goods", "value": 9800},
-                    {"name": "Footwear", "value": 16300}
-                ]
-            return {
-                "text": "Evaluated inventory turnover ratios and 30-day neural LSTM projections from DuckDB Gold tables:",
-                "sqlQuery": """SELECT 
-  category,
-  SUM(current_stock) AS in_stock_units,
-  ROUND(SUM(forecasted_q4_demand)) AS projected_q4_demand,
-  ROUND(SUM(forecasted_q4_demand - current_stock)) AS reorder_shortfall
-FROM gold.dim_product p
-JOIN gold.fact_inventory i ON p.product_sk = i.product_sk
-GROUP BY category
-ORDER BY reorder_shortfall DESC;""",
-                "data_type": "chart",
-                "chartData": chart_list,
-                "tableData": {
-                  "headers": ["Product Category", "In-Stock Units", "Q4 Forecast Demand", "Status Alert"],
-                  "rows": [
-                    ["Electronics", "11,200 units", "14,500 units", "Reorder Required (+3,300)"],
-                    ["Apparel", "19,500 units", "22,000 units", "Reorder Required (+2,500)"],
-                    ["Home Goods", "6,400 units", "9,800 units", "Critical Stockout Risk (+3,400)"],
-                    ["Footwear", "12,100 units", "16,300 units", "Reorder Required (+4,200)"]
-                  ]
-                }
-            }
-
-        # 3. Churn / Customer / RFM / Risk
-        if any(w in q for w in ["churn", "customer", "rfm", "segment", "risk"]):
-            return {
-                "text": "Segmented 4,377 unique customer profiles across RFM recency and lifetime value tiers:",
-                "sqlQuery": """SELECT 
-  rfm_segment,
-  COUNT(customer_sk) AS total_customers,
-  ROUND(AVG(recency_days), 1) AS avg_days_since_order,
-  ROUND(AVG(historical_clv), 2) AS avg_clv
-FROM gold.dim_customer
-WHERE rfm_segment IN ('At Risk', 'About To Sleep', 'Hibernating')
-GROUP BY rfm_segment
-ORDER BY avg_clv DESC;""",
-                "data_type": "table",
-                "tableData": {
-                  "headers": ["RFM Segment", "Customer Count", "Avg Days Inactive", "Est. Revenue At Risk"],
-                  "rows": [
-                    ["At Risk", "753", "68 days", "₹470,246,241"],
-                    ["About To Sleep", "399", "45 days", "₹203,525,511"],
-                    ["Hibernating", "544", "112 days", "₹76,697,472"],
-                    ["Champions", "500", "12 days", "₹507,696,500"]
-                  ]
-                },
-                "chartData": [
-                  {"name": "At Risk", "value": 753},
-                  {"name": "About To Sleep", "value": 399},
-                  {"name": "Hibernating", "value": 544},
-                  {"name": "Champions", "value": 500}
-                ]
-            }
-
-        # 4. Revenue / Sales / City / Channels
-        rev = s.get("revenue", {}).get("total_revenue", 0)
-        trend = s.get("monthly_revenue_trend", [])
-        chart_data = [{"name": item.get("year_month", f"M{idx+1}"), "value": item.get("revenue", 100000)} for idx, item in enumerate(trend[-6:])]
-        if not chart_data:
-            chart_data = [
-                {"name": "Mumbai", "value": 184000},
-                {"name": "Delhi", "value": 142000},
-                {"name": "Bangalore", "value": 128000},
-                {"name": "Hyderabad", "value": 98000}
-            ]
-
+        # Complete fallback
         return {
-            "text": f"Connected to DuckDB OLAP engine. Total sales across omnichannel touchpoints is **₹{rev:,.2f}**. Here is the monthly revenue trajectory:",
-            "sqlQuery": """SELECT 
-  d.year_month,
-  SUM(s.net_amount) AS monthly_revenue,
-  COUNT(DISTINCT s.transaction_id) AS total_orders
-FROM gold.fact_sales s
-JOIN gold.dim_date d ON s.date_key = d.date_key
-GROUP BY d.year_month
-ORDER BY d.year_month ASC;""",
-            "data_type": "chart",
-            "chartData": chart_data,
-            "tableData": {
-              "headers": ["Channel / City", "Total Orders", "Net Revenue"],
-              "rows": [
-                ["POS In-Store", "50,862", "₹142,500,000"],
-                ["Web Storefront", "19,568", "₹98,200,000"],
-                ["Top City: Mumbai", "12,400", "₹52,100,000"],
-                ["Top City: Delhi", "9,800", "₹41,300,000"]
-              ]
-            }
+            "text": text.strip(),
+            "sqlQuery": None,
+            "data_type": "text",
+            "chartData": None,
+            "tableData": None,
         }
 
-# Singleton instance
+    def ask(
+        self, user_query: str, history: Optional[List[Dict[str, Any]]] = None
+    ) -> Tuple[Dict[str, Any], Optional[str], int]:
+        """
+        Processes question through Gemini and DuckDB Gold layer.
+        Returns (response_dict, error_code, http_status).
+        """
+        # 1. Check data presence
+        if not self.is_data_available():
+            err_msg = (
+                "Analytics Gold data is missing. Please run 'scripts/generation.sh', "
+                "'scripts/ingestion.sh', and 'scripts/transform.sh' to populate Gold analytics data."
+            )
+            return {"error": err_msg, "code": "NO_DATA"}, "NO_DATA", 503
+
+        # 2. Check API key presence
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            err_msg = "Gemini API key is not configured. Please set GEMINI_API_KEY in your environment."
+            return {"error": err_msg, "code": "NO_API_KEY"}, "NO_API_KEY", 503
+
+        # 3. Ensure DuckDB initialized
+        ok, db_err = self._init_duckdb()
+        if not ok:
+            return {"error": db_err, "code": "NO_DATA"}, "NO_DATA", 503
+
+        # 4. Import modern google-genai SDK
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError as e:
+            logger.exception("google-genai SDK not installed: %s", e)
+            return {
+                "error": "google-genai SDK is not installed on the server.",
+                "code": "MODEL_ERROR",
+            }, "MODEL_ERROR", 503
+
+        # 5. Build system prompt
+        system_instruction = f"""You are the Retail Data Hub SQL Architect and Executive Business Intelligence Consultant.
+You analyze retail data by writing DuckDB SQL queries against the Gold layer star schema and explaining the results.
+
+GOLD LAYER DUCKDB SCHEMA:
+{self._schema_text}
+
+SCHEMA RELATIONSHIPS:
+- fact_sales.product_sk -> dim_product.product_sk
+- fact_sales.store_sk -> dim_store.store_sk
+- fact_sales.customer_sk -> dim_customer.customer_sk
+- fact_sales.date_key -> dim_date.date_key
+- For current customer records, filter by `dim_customer.is_current = true`.
+
+QUERY RULES:
+1. Generate valid, read-only DuckDB SQL for the user's question.
+2. The query MUST be a single SELECT or WITH...SELECT statement.
+3. Reference tables directly: `fact_sales`, `dim_product`, `dim_store`, `dim_customer`, `dim_date` (no database prefix).
+4. Always use appropriate aggregation, GROUP BY, and ORDER BY clauses.
+5. The query MUST include a LIMIT clause (maximum 200).
+6. Return a JSON object matching this schema:
+{{
+  "text": "Executive explanation and analytical insights in clean Markdown.",
+  "sqlQuery": "SELECT ... FROM fact_sales ... LIMIT 10;",
+  "data_type": "table" | "chart" | "text"
+}}"""
+
+        # 6. Build conversation contents (keeping last 6 turns)
+        contents = []
+        if history:
+            for item in history[-6:]:
+                sender = item.get("role") or item.get("sender") or "user"
+                role = "user" if sender in ("user", "human") else "model"
+                text = item.get("text") or item.get("message") or item.get("content") or ""
+                if text.strip():
+                    contents.append(
+                        types.Content(
+                            role=role,
+                            parts=[types.Part.from_text(text=text.strip())],
+                        )
+                    )
+
+        # Append current user question
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=user_query.strip())],
+            )
+        )
+
+        # 7. Model selection with fallback
+        chosen_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+        models_to_try = [chosen_model]
+        for m in FALLBACK_MODELS:
+            if m not in models_to_try:
+                models_to_try.append(m)
+
+        client = genai.Client(api_key=api_key)
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            response_mime_type="application/json",
+            temperature=0.2,
+        )
+
+        last_error_code = "MODEL_ERROR"
+        last_error_message = ""
+        parsed_response = None
+        active_model = ""
+
+        for model_name in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=config,
+                )
+                if response and response.text:
+                    parsed_response = self._parse_json_defensively(response.text)
+                    active_model = model_name
+                    logger.info("Successfully received Gemini response from %s", model_name)
+                    break
+            except Exception as e:
+                err_str = str(e)
+                logger.warning("Attempt with model %s failed: %s", model_name, err_str)
+                last_error_message = err_str
+                if "429" in err_str or "ResourceExhausted" in err_str or "quota" in err_str.lower():
+                    last_error_code = "RATE_LIMIT"
+                else:
+                    last_error_code = "MODEL_ERROR"
+
+        if not parsed_response:
+            return {
+                "error": f"Gemini API request failed: {last_error_message}",
+                "code": last_error_code,
+            }, last_error_code, 503
+
+        # 8. Real SQL Execution and Repair
+        sql_query = parsed_response.get("sqlQuery")
+        if sql_query:
+            valid_sql, val_err = self._validate_sql(sql_query)
+            if val_err:
+                logger.warning("Generated SQL failed validation: %s", val_err)
+                parsed_response["sqlQuery"] = None
+                parsed_response["tableData"] = None
+                parsed_response["chartData"] = None
+            else:
+                # Execute in DuckDB
+                df, sql_err = self._execute_sql(valid_sql)
+
+                # If failed, attempt repair once with Gemini
+                if sql_err:
+                    logger.info("SQL execution error: %s. Asking Gemini for repair...", sql_err)
+                    try:
+                        repair_prompt = (
+                            f"The SQL query you generated:\n{valid_sql}\n"
+                            f"Failed execution with DuckDB error:\n{sql_err}\n"
+                            f"Please fix the SQL query using the Gold layer column names and return the corrected JSON object."
+                        )
+                        repair_contents = list(contents)
+                        repair_contents.append(
+                            types.Content(
+                                role="model",
+                                parts=[types.Part.from_text(text=json.dumps(parsed_response))],
+                            )
+                        )
+                        repair_contents.append(
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=repair_prompt)],
+                            )
+                        )
+
+                        repair_res = client.models.generate_content(
+                            model=active_model,
+                            contents=repair_contents,
+                            config=config,
+                        )
+                        if repair_res and repair_res.text:
+                            repaired_json = self._parse_json_defensively(repair_res.text)
+                            repaired_sql = repaired_json.get("sqlQuery")
+                            if repaired_sql:
+                                rep_valid_sql, rep_val_err = self._validate_sql(repaired_sql)
+                                if not rep_val_err:
+                                    rep_df, rep_err = self._execute_sql(rep_valid_sql)
+                                    if rep_df is not None:
+                                        df = rep_df
+                                        valid_sql = rep_valid_sql
+                                        parsed_response["text"] = repaired_json.get(
+                                            "text", parsed_response.get("text")
+                                        )
+                    except Exception as rep_e:
+                        logger.warning("SQL repair attempt encountered error: %s", rep_e)
+
+                # Build real tableData and chartData from the query results
+                if df is not None:
+                    suggested_type = parsed_response.get("data_type", "table")
+                    table_data, chart_data, final_data_type = self._build_data_structures(
+                        df, suggested_type
+                    )
+                    parsed_response["sqlQuery"] = valid_sql
+                    parsed_response["tableData"] = table_data
+                    parsed_response["chartData"] = chart_data
+                    parsed_response["data_type"] = final_data_type
+                else:
+                    parsed_response["tableData"] = None
+                    parsed_response["chartData"] = None
+                    parsed_response["data_type"] = "text"
+
+        return parsed_response, None, 200
+
+
+# Singleton engine instance
 engine = ChatEngine()

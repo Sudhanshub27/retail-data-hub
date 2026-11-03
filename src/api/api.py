@@ -26,8 +26,8 @@ from typing import Optional, Set
 import pandas as pd
 from fastapi import FastAPI, Query, Body, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel, Field
 
 import sys
 
@@ -45,7 +45,6 @@ except ImportError:
     import src.api.chat_engine as ce
     chat_engine = ce.engine
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ANALYTICS_DIR = os.path.join(ROOT_DIR, "data", "analytics")
 DATA_DIR = os.path.join(ROOT_DIR, "data")
 QUALITY_REPORT = os.path.join(ROOT_DIR, "data", "data_quality_report.json")
@@ -56,29 +55,53 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ── CORS Middleware (directly after app creation) ──────────────────
+cors_origins_env = os.getenv("CORS_ORIGINS", "*").strip()
+if cors_origins_env == "*" or not cors_origins_env:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 # ══════════════════════════════════════════════════════════════════════
 # AI CHAT ASSISTANT
 # ══════════════════════════════════════════════════════════════════════
 
 class ChatRequest(BaseModel):
-    message: str
-    history: Optional[list] = None
+    message: str = Field(..., max_length=2000)
+    history: Optional[list[dict]] = None
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
-    """Business Intelligence Chat Assistant powered by Gemini."""
-    response = chat_engine.ask(request.message, request.history)
+    """Business Intelligence Chat Assistant powered by Gemini & DuckDB Gold layer."""
+    response, err_code, status_code = chat_engine.ask(request.message, request.history)
+    if err_code:
+        return JSONResponse(status_code=status_code or 503, content=response)
     return response
 
-
-# Allow Next.js dev server (localhost:3000) to call this API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.get("/api/chat/health")
+def chat_health():
+    """Returns AI Chat configuration, current model, and Gold data availability."""
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    data_loaded = chat_engine.is_data_available()
+    return {
+        "key_configured": bool(api_key),
+        "model": model,
+        "data_loaded": data_loaded,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════
