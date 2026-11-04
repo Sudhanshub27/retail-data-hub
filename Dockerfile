@@ -13,23 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code
+# Copy application source code including pre-built Gold tables and analytics
 COPY . .
-
-# Pre-generate datasets and run Medallion pipeline to build analytics Gold layer and analytics reports
-RUN bash scripts/generation.sh && \
-    python3 src/ingestion/ingest_batch.py && \
-    python3 src/ingestion/ingest_realtime.py && \
-    python3 src/transformation/bronze_to_silver.py && \
-    python3 src/transformation/silver_to_gold.py && \
-    python3 src/analytics/commercial_kpis.py && \
-    python3 src/analytics/operations_kpis.py && \
-    python3 src/analytics/customer_kpis.py && \
-    python3 src/analytics/executive_summary.py && \
-    python3 src/analytics/market_basket.py && \
-    python3 src/analytics/anomaly_detection.py && \
-    python3 src/analytics/fraud_detection.py && \
-    python3 src/ml/demand_forecast.py
 
 EXPOSE 8000
 

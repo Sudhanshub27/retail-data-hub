@@ -97,7 +97,7 @@ async function main() {
     if (backendProcess) {
       try {
         backendProcess.kill("SIGTERM");
-      } catch (e) {}
+      } catch (e) { }
     }
     process.exit(code || 0);
   });
@@ -107,4 +107,3 @@ main().catch((err) => {
   console.error("Fatal launcher error:", err);
   process.exit(1);
 });
-

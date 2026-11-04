@@ -17,7 +17,13 @@ env/
 ENV/
 
 # ─── Generated Data Files & Directories ─────────────────
-data/
+data/raw/
+data/bronze/
+data/silver/
+data/logs/
+!data/gold/
+!data/analytics/
+!data/data_quality_report.json
 
 # ─── IDE / Editor ─────────────────────────────────────
 .vscode/
