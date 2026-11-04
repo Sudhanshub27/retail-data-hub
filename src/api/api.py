@@ -121,6 +121,24 @@ def load_json(filename: str) -> dict:
 # ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════
 
+@app.get("/api/stores")
+def get_stores():
+    """Return real stores from the Gold dim_store table."""
+    path = os.path.join(DATA_DIR, "gold", "dim_store.parquet")
+    stores = [{"id": "all", "name": "All Stores", "city": "All", "state": "All", "region": "All"}]
+    if os.path.exists(path):
+        df = pd.read_parquet(path)
+        for _, row in df.iterrows():
+            stores.append({
+                "id": str(row["store_id"]),
+                "name": f"{row['city']} ({row['store_id']})",
+                "city": str(row["city"]),
+                "state": str(row["state"]),
+                "region": str(row["region"]),
+            })
+    return stores
+
+
 @app.get("/api/health")
 def health():
     """Health check."""
@@ -139,25 +157,25 @@ def executive_summary():
 
 
 @app.get("/api/commercial")
-def commercial_kpis():
+def commercial_kpis(store_id: Optional[str] = Query(None)):
     """Revenue, city sales, top products, channel mix, festive analysis."""
     return load_json("commercial_kpis.json")
 
 
 @app.get("/api/operations")
-def operations_kpis():
+def operations_kpis(store_id: Optional[str] = Query(None)):
     """Inventory turnover, stockout rate, delivery times, reorder alerts."""
     return load_json("operations_kpis.json")
 
 
 @app.get("/api/customers")
-def customer_kpis():
+def customer_kpis(store_id: Optional[str] = Query(None)):
     """CLV, RFM segmentation, new vs returning customers."""
     return load_json("customer_kpis.json")
 
 
 @app.get("/api/market-basket")
-def market_basket():
+def market_basket(store_id: Optional[str] = Query(None)):
     """Market Basket Analysis — standard, cross-channel, and category."""
     return load_json("market_basket.json")
 
@@ -172,25 +190,36 @@ def data_quality():
 
 
 @app.get("/api/forecast")
-def demand_forecast():
+def demand_forecast(store_id: Optional[str] = Query(None)):
     """LSTM demand forecast — 30-day revenue predictions by category."""
     return load_json("demand_forecast.json")
 
 
 @app.get("/api/anomalies")
-def anomalies():
+def anomalies(store_id: Optional[str] = Query(None)):
     """Anomaly detection report — Z-Score, IQR, Isolation Forest."""
-    return load_json("anomaly_report.json")
+    data = load_json("anomaly_report.json")
+    if "error" in data:
+        return data
+    if store_id and store_id != "all":
+        top = [a for a in data.get("top_anomalies", []) if a.get("store_id") == store_id]
+        all_a = [a for a in data.get("all_anomalies", []) if a.get("store_id") == store_id]
+        return {
+            **data,
+            "top_anomalies": top,
+            "all_anomalies": all_a,
+        }
+    return data
 
 
 @app.get("/api/fraud")
-def fraud():
+def fraud(store_id: Optional[str] = Query(None)):
     """Fraud detection report — rule-based scoring engine."""
     return load_json("fraud_report.json")
 
 
 @app.get("/api/sales")
-def sales_analytics():
+def sales_analytics(store_id: Optional[str] = Query(None)):
     """Sales-specific data for the Sales Analytics dashboard page."""
     data = load_json("commercial_kpis.json")
     if "error" in data:
@@ -205,20 +234,29 @@ def sales_analytics():
 
 
 @app.get("/api/inventory")
-def inventory():
+def inventory(store_id: Optional[str] = Query(None)):
     """Inventory-specific data for the Inventory Health page."""
     data = load_json("operations_kpis.json")
     if "error" in data:
         return data
+    turnover = data.get("inventory_turnover", {})
+    reorder_alerts = data.get("reorder_alerts", [])
+    if store_id and store_id != "all":
+        reorder_alerts = [r for r in reorder_alerts if r.get("store_id") == store_id]
+        by_store = turnover.get("by_store", [])
+        turnover = {
+            **turnover,
+            "by_store": [s for s in by_store if s.get("store_id") == store_id]
+        }
     return {
-        "turnover": data.get("inventory_turnover", {}),
+        "turnover": turnover,
         "stockout_rate": data.get("stockout_rate", {}),
-        "reorder_alerts": data.get("reorder_alerts", []),
+        "reorder_alerts": reorder_alerts,
     }
 
 
 @app.get("/api/logistics")
-def logistics():
+def logistics(store_id: Optional[str] = Query(None)):
     """Logistics-specific data for the Logistics page."""
     data = load_json("operations_kpis.json")
     if "error" in data:
@@ -230,7 +268,7 @@ def logistics():
 
 
 @app.get("/api/overview")
-def overview():
+def overview(store_id: Optional[str] = Query(None)):
     """Combined summary data for the Overview dashboard page."""
     commercial = load_json("commercial_kpis.json")
     operations = load_json("operations_kpis.json")

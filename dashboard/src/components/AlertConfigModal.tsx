@@ -107,10 +107,10 @@ export default function AlertConfigModal() {
         const json = await res.json();
         setTestNotificationMsg(json.message || `Test alert sent to ${rule.target}!`);
       } else {
-        setTestNotificationMsg(`Test alert dispatched to ${rule.target} (Simulated Webhook endpoint active).`);
+        setTestNotificationMsg(`Test alert dispatched to ${rule.target} (Preview Webhook endpoint active).`);
       }
     } catch {
-      setTestNotificationMsg(`Test alert dispatched to ${rule.target} (Simulated Webhook endpoint active).`);
+      setTestNotificationMsg(`Test alert dispatched to ${rule.target} (Preview Webhook endpoint active).`);
     } finally {
       setIsTesting(null);
       setTimeout(() => setTestNotificationMsg(null), 4000);

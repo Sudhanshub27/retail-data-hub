@@ -222,7 +222,7 @@ export default function UploadModal() {
                 <div className="grid grid-cols-3 gap-3 text-xs">
                   <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
                     <div className="text-xs text-slate-500 uppercase font-medium">Total Revenue Impact</div>
-                    <div className="text-base font-semibold text-emerald-700 font-mono mt-0.5">$342,890.00</div>
+                    <div className="text-base font-semibold text-emerald-700 font-mono mt-0.5">₹3,42,890</div>
                   </div>
                   <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
                     <div className="text-xs text-slate-500 uppercase font-medium">Unique SKUs</div>
@@ -230,7 +230,7 @@ export default function UploadModal() {
                   </div>
                   <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
                     <div className="text-xs text-slate-500 uppercase font-medium">Stores Impacted</div>
-                    <div className="text-base font-semibold text-slate-700 font-mono mt-0.5">142 Locations</div>
+                    <div className="text-base font-semibold text-slate-700 font-mono mt-0.5">51 Locations</div>
                   </div>
                 </div>
               </div>

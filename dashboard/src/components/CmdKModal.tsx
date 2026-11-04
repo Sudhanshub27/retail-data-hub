@@ -28,20 +28,20 @@ const SEARCH_ITEMS: SearchResult[] = [
   { id: "p-live", category: "Pages", title: "Real-time Operations Stream", subtitle: "High-frequency streaming log & QPS latency", href: "/live", badge: "Live Sync", badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
   { id: "p-chat", category: "Pages", title: "Retail AI Assistant & SQL", subtitle: "Conversational SQL bot & chart generator", href: "/chat" },
   { id: "p-data-quality", category: "Pages", title: "Data Quality & Lineage", subtitle: "Freshness SLA monitors & DAG visualizer", href: "/data-quality" },
-  { id: "p-tables", category: "Pages", title: "Raw Data Explorer", subtitle: "High-density multi-column datagrid", href: "/tables" },
+  { id: "p-tables", category: "Pages", title: "Raw Data Explorer", subtitle: "High-density tabular datagrid", href: "/tables" },
 
   // SKUs
-  { id: "sku-1", category: "SKUs", title: "SKU-8842: Wireless Noise-Canceling Headphones", subtitle: "Electronics • $249.99 • Fast Mover (Stock: 1,420)", href: "/inventory" },
-  { id: "sku-2", category: "SKUs", title: "SKU-3109: Organic Espresso Dark Roast 1kg", subtitle: "Grocery • $18.50 • High Velocity (Stock: 340)", href: "/inventory" },
-  { id: "sku-3", category: "SKUs", title: "SKU-9901: Ergonomic Mesh Executive Chair", subtitle: "Office • $320.00 • Low Stock Horizon (Stock: 12)", href: "/inventory", badge: "Low Stock", badgeColor: "bg-amber-50 text-amber-700 border border-amber-200" },
+  { id: "sku-1", category: "SKUs", title: "SKU-8842: Wireless Noise-Canceling Headphones", subtitle: "Electronics • ₹14,500 • Fast Mover (Stock: 1,420)", href: "/inventory" },
+  { id: "sku-2", category: "SKUs", title: "SKU-3109: Organic Espresso Dark Roast 1kg", subtitle: "Grocery • ₹1,850 • High Velocity (Stock: 340)", href: "/inventory" },
+  { id: "sku-3", category: "SKUs", title: "SKU-9901: Ergonomic Mesh Executive Chair", subtitle: "Office • ₹24,900 • Low Stock Horizon (Stock: 12)", href: "/inventory", badge: "Low Stock", badgeColor: "bg-amber-50 text-amber-700 border border-amber-200" },
 
   // Fraud / Anomalies
-  { id: "f-104", category: "Fraud", title: "TXN-90812: Multi-Card Rapid Velocity", subtitle: "Risk Score: 94/100 • $1,450.00 • Flagged NYC Broadway", href: "/fraud", badge: "Risk 94", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
+  { id: "f-104", category: "Fraud", title: "TXN-90812: Rapid Card Velocity", subtitle: "Risk Score: 94/100 • ₹1,45,000 • Flagged Mumbai Store", href: "/fraud", badge: "Risk 94", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
   { id: "a-201", category: "Anomalies", title: "POS-Sync Spike #4021", subtitle: "Revenue Anomaly • +340% surge in refunds in 15 mins", href: "/anomalies", badge: "Critical", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
 
   // Customers
-  { id: "c-77", category: "Customers", title: "CUST-4921: Enterprise Corporate Buyer", subtitle: "LTV $42,500 • Champions Segment • Churn Risk 4%", href: "/customers" },
-  { id: "c-88", category: "Customers", title: "CUST-1049: High Velocity Shopper", subtitle: "LTV $12,800 • At Risk Segment • Churn Risk 82%", href: "/customers", badge: "82% Churn", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
+  { id: "c-77", category: "Customers", title: "CUST-4921: Enterprise Corporate Buyer", subtitle: "LTV ₹3,42,500 • Champions Segment • Churn Risk 4%", href: "/customers" },
+  { id: "c-88", category: "Customers", title: "CUST-1049: High Velocity Shopper", subtitle: "LTV ₹1,12,800 • At Risk Segment • Churn Risk 82%", href: "/customers", badge: "82% Churn", badgeColor: "bg-rose-50 text-rose-700 border border-rose-200" },
 ];
 
 export default function CmdKModal() {

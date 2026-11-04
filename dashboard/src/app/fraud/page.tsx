@@ -10,40 +10,107 @@ import {
   X,
   CheckCircle2,
   Lock,
-  IndianRupee,
+  MapPin,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import ChartTooltip from "@/components/ChartTooltip";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
+import { PageSkeleton } from "@/components/Skeleton";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { useStore } from "@/context/StoreContext";
+import { useApi } from "@/hooks/useApi";
+import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
 import { fmtCurrency, fmtNum } from "@/lib/format";
 
-const SUSPICIOUS_TXNS = [
-  { id: "TXN-90812", riskScore: 94, amount: 145000, loc: "Mumbai, MH (IP: 185.220.101.4)", reason: "Rapid Multi-Card Velocity (4 attempts / 2 mins)", status: "Blocked" },
-  { id: "TXN-90813", riskScore: 88, amount: 89050, loc: "Bengaluru, KA (IP: 45.154.255.1)", reason: "VPN / Data Center IP + Address Mismatch", status: "In Review" },
-  { id: "TXN-90814", riskScore: 82, amount: 210000, loc: "Delhi NCR (IP: 198.51.100.42)", reason: "High-Value Transaction from New Account", status: "In Review" },
-  { id: "TXN-90815", riskScore: 76, amount: 62000, loc: "Hyderabad, TS (IP: 172.56.21.9)", reason: "Device Fingerprint Automation Mismatch", status: "Flagged" },
-];
+interface FraudTransaction {
+  transaction_id: string;
+  customer_id: string;
+  product_name: string;
+  category: string;
+  city: string;
+  channel: string;
+  date: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  fraud_score: number;
+  risk_level: string;
+  signals: string[];
+}
 
-const GEOLOCATION_FRAUD_RISK = [
-  { region: "Western Region (Mumbai/Pune)", riskLevel: "Elevated", totalBlocks: 142, volume: 4850000 },
-  { region: "Northern Region (Delhi NCR)", riskLevel: "High", totalBlocks: 215, volume: 8210000 },
-  { region: "Southern Region (Bengaluru/Chennai)", riskLevel: "Moderate", totalBlocks: 68, volume: 1840000 },
-  { region: "Eastern Region (Kolkata)", riskLevel: "Moderate", totalBlocks: 54, volume: 1220000 },
-];
+interface CityRisk {
+  city: string;
+  flagged_count: number;
+  avg_score: number;
+}
+
+interface SignalFrequency {
+  signal: string;
+  count: number;
+}
+
+interface FraudApiResponse {
+  summary?: {
+    total_transactions: number;
+    flagged_transactions: number;
+    fraud_rate_pct: number;
+    risk_distribution: Array<{ level: string; count: number }>;
+    avg_fraud_score: number;
+  };
+  top_transactions?: FraudTransaction[];
+  by_city?: CityRisk[];
+  signal_frequency?: SignalFrequency[];
+}
 
 export default function FraudPage() {
   const { selectedStore } = useStore();
-  const mult = selectedStore.multiplier;
+  const { data, loading, error, refetch } = useApi<FraudApiResponse>("/api/fraud");
 
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [ruleCreatedSuccess, setRuleCreatedSuccess] = useState(false);
 
   // New Rule Form State
-  const [ruleName, setRuleName] = useState("High Value Proxy Block");
+  const [ruleName, setRuleName] = useState("High Value Proxy Guard");
   const [minAmount, setMinAmount] = useState(50000);
   const [actionType, setActionType] = useState("Block");
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={refetch} />;
+  }
+
+  const summary = data?.summary;
+  const txns = data?.top_transactions || [];
+  const cityRisks = data?.by_city || [];
+  const signals = data?.signal_frequency || [];
+
+  if (!data || !summary) {
+    return (
+      <EmptyState
+        title="No fraud report data available"
+        description="Run scripts/kpi_analysis.sh to compute rule-based fraud scores and risk signals."
+        onReset={refetch}
+        resetText="Retry fetch"
+      />
+    );
+  }
+
+  const criticalCount =
+    summary.risk_distribution?.find((r) => r.level.toLowerCase() === "critical")?.count || 0;
 
   const handleCreateRule = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +126,7 @@ export default function FraudPage() {
       {/* 1. PageHeader */}
       <PageHeader
         title="Fraud Prevention & Transaction Safety"
-        subtitle={`Real-time suspicious transaction stream, automated risk scoring (0–100), and custom security filters for ${selectedStore.name}`}
+        subtitle={`Rule-based risk scoring (0–100), velocity triggers, and security filters for ${selectedStore.name}`}
         action={
           <button
             onClick={() => setIsRuleModalOpen(true)}
@@ -71,130 +138,152 @@ export default function FraudPage() {
         }
       />
 
-      {/* 2. Row of KPI cards (max 4, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
+      {/* 2. Row of KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Fraud Prevented"
-          value={fmtCurrency(Math.round(14820000 * mult))}
-          change="99.4% Precision"
-          trend="up"
-          icon={ShieldCheck}
-          subtitle="Estimated revenue protected from unauthorized transactions"
-          sparklineData={[112, 118, 125, 134, 140, 145, 148]}
-        />
-        <KpiCard
           title="Flagged Transactions"
-          value={fmtNum(Math.round(479 * mult))}
-          change="Real-time monitor"
+          value={fmtNum(summary.flagged_transactions)}
+          change={`${summary.fraud_rate_pct}% Flagged`}
           trend="down"
           icon={ShieldAlert}
-          subtitle="Transactions flagged with Risk Score &gt; 70"
+          subtitle={`Across ${fmtNum(summary.total_transactions)} analyzed orders`}
           sparklineData={[520, 505, 492, 485, 480, 475, 479]}
         />
         <KpiCard
-          title="Proxy & Bot Interceptions"
-          value={fmtNum(Math.round(214 * mult))}
-          change="+14% Bot Mitigation"
-          trend="up"
-          icon={Globe}
-          subtitle="Blocked orders originating from masked data center IPs"
+          title="Average Fraud Risk Score"
+          value={`${summary.avg_fraud_score.toFixed(1)} / 100`}
+          change="Standard baseline"
+          trend="neutral"
+          icon={ShieldCheck}
+          subtitle="Mean composite risk score"
+          sparklineData={[28, 27, 26, 25, 25, 24, 24]}
         />
         <KpiCard
-          title="Payment Dispute Rate"
-          value="0.12%"
-          change="Well below 0.9% threshold"
-          trend="up"
+          title="Critical Risk Incidents"
+          value={fmtNum(criticalCount)}
+          change="Score >= 80"
+          trend="down"
           icon={Lock}
-          subtitle="Share of customer purchases contested as chargebacks"
+          subtitle="Transactions with critical velocity/burst signals"
+        />
+        <KpiCard
+          title="Monitored Territories"
+          value={`${cityRisks.length} Cities`}
+          change={`Top: ${cityRisks[0]?.city ?? "Online"}`}
+          trend="neutral"
+          icon={Globe}
+          subtitle="Coverage of automated transaction surveillance"
         />
       </div>
 
-      {/* 3. Consistent 12-column grid with gap-6 */}
+      {/* 3. 12-column grid */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Real-time Suspicious Transaction Stream */}
+        {/* Suspicious Transaction Stream */}
         <div className="col-span-12 lg:col-span-8">
           <ChartCard
-            title="Suspicious Transaction Monitor"
-            subtitle="Recent purchases flagged by automated risk rules for security review"
+            title="Flagged High-Risk Transactions"
+            subtitle="Transactions scored highest by the automated heuristic engine"
           >
-            {SUSPICIOUS_TXNS.length === 0 ? (
-              <EmptyState title="No suspicious activity" description="All recent transactions passed fraud validation checks." />
+            {txns.length === 0 ? (
+              <EmptyState title="No suspicious activity" description="No transactions flagged with elevated risk scores." />
             ) : (
               <div className="space-y-3 my-1">
-                {SUSPICIOUS_TXNS.map((txn) => (
-                  <div
-                    key={txn.id}
-                    className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold text-rose-600">{txn.id}</span>
-                        <span className="font-semibold text-slate-900 tabular-nums">
-                          {fmtCurrency(Math.round(txn.amount * mult))}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${
-                            txn.status === "Blocked"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          {txn.status}
-                        </span>
+                {txns.map((txn) => {
+                  const isCrit = txn.risk_level === "Critical";
+                  return (
+                    <div
+                      key={txn.transaction_id}
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-rose-600">{txn.transaction_id}</span>
+                          <span className="font-semibold text-slate-900 tabular-nums">
+                            {fmtCurrency(txn.total_amount)}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${
+                              isCrit
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            {txn.risk_level}
+                          </span>
+                          <span className="text-slate-400 font-mono text-xs">({txn.customer_id})</span>
+                        </div>
+                        <div className="text-slate-800 font-medium truncate">
+                          {txn.product_name} • <span className="text-slate-500">{txn.city} ({txn.channel})</span>
+                        </div>
+                        <div className="text-xs text-rose-700 font-medium">
+                          {txn.signals.join(" • ")}
+                        </div>
                       </div>
-                      <div className="text-slate-800 font-medium">{txn.reason}</div>
-                      <div className="text-xs text-slate-500">{txn.loc}</div>
-                    </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-center p-2 bg-white border border-slate-200 rounded-lg min-w-[70px]">
-                        <div className="text-xs text-slate-400 font-medium">Risk Score</div>
-                        <div className="text-lg font-semibold text-rose-600 tabular-nums">{txn.riskScore}</div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-center p-2 bg-white border border-slate-200 rounded-lg min-w-[70px]">
+                          <div className="text-xs text-slate-400 font-medium">Risk Score</div>
+                          <div className="text-lg font-semibold text-rose-600 tabular-nums">{txn.fraud_score}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </ChartCard>
         </div>
 
-        {/* Geolocation Fraud Heatmap / Regional Risk Breakdown */}
-        <div className="col-span-12 lg:col-span-4">
+        {/* Regional Risk Breakdown */}
+        <div className="col-span-12 lg:col-span-4 space-y-6">
           <ChartCard
-            title="Regional Risk Breakdown"
-            subtitle="Flagged volumes and automated security blocks grouped by territory"
+            title="City Risk Exposure"
+            subtitle="Flagged volume and average score by location"
           >
-            <div className="space-y-3 my-1">
-              {GEOLOCATION_FRAUD_RISK.map((geo, idx) => (
+            <div className="space-y-2.5 my-1">
+              {cityRisks.slice(0, 6).map((geo, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 text-xs"
+                  className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 text-xs"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">{geo.region}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${
-                        geo.riskLevel === "High"
-                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      {geo.riskLevel} Risk
+                    <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                      {geo.city}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      Avg Score: {geo.avg_score.toFixed(1)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200">
-                    <span>Blocked: {fmtCurrency(Math.round(geo.volume * mult))}</span>
-                    <span className="text-rose-700 font-medium">{geo.totalBlocks} Blocks</span>
+                    <span>Flagged Transactions</span>
+                    <span className="text-slate-900 font-semibold">{fmtNum(geo.flagged_count)}</span>
                   </div>
                 </div>
               ))}
             </div>
           </ChartCard>
+
+          <ChartCard
+            title="Signal Triggers"
+            subtitle="Frequency of specific risk triggers detected by heuristic engine"
+          >
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={signals} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis type="number" {...CHART_AXIS_PROPS} tickFormatter={(v) => fmtNum(v)} />
+                  <YAxis type="category" dataKey="signal" {...CHART_AXIS_PROPS} width={100} />
+                  <Tooltip content={<ChartTooltip formatter={fmtNum} />} />
+                  <Bar dataKey="count" name="Triggers" fill={CHART_COLORS[4]} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
         </div>
       </div>
 
-      {/* Visual Fraud Rule Builder Modal */}
+      {/* Security Rule Builder Modal */}
       {isRuleModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
           <div className="relative w-full max-w-xl bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden z-10 p-6 space-y-4">
@@ -214,7 +303,7 @@ export default function FraudPage() {
 
             {ruleCreatedSuccess && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs font-medium text-emerald-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Security rule deployed live to payment gateway!
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Security rule deployed live to transaction gateway!
               </div>
             )}
 

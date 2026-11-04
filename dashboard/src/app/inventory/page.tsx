@@ -3,43 +3,128 @@
 import React, { useState } from "react";
 import {
   Package,
-  Building2,
+  Layers,
   AlertTriangle,
   ShoppingCart,
   CheckCircle2,
   X,
   Truck,
+  Building2,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import ChartTooltip from "@/components/ChartTooltip";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
+import { PageSkeleton } from "@/components/Skeleton";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { useStore } from "@/context/StoreContext";
+import { useApi } from "@/hooks/useApi";
+import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
 import { fmtCurrency, fmtNum } from "@/lib/format";
 
-const WAREHOUSES = [
-  { id: "wh-1", name: "Mumbai Central DC", region: "Maharashtra", capacity: "88% Full", skus: 14200, status: "Optimal", pct: 88 },
-  { id: "wh-2", name: "Delhi NCR Mega Hub", region: "North Region", capacity: "92% High", skus: 18900, status: "Near Capacity", pct: 92 },
-  { id: "wh-3", name: "Bengaluru Logistics Hub", region: "Karnataka", capacity: "74% Full", skus: 12400, status: "Optimal", pct: 74 },
-  { id: "wh-4", name: "Hyderabad Fulfillment DC", region: "Telangana", capacity: "65% Normal", skus: 9800, status: "Optimal", pct: 65 },
-  { id: "wh-5", name: "Kolkata Distribution Hub", region: "West Bengal", capacity: "81% Full", skus: 11200, status: "Optimal", pct: 81 },
-];
+interface ReorderAlert {
+  store_city: string;
+  store_id: string;
+  product_name: string;
+  category: string;
+  quantity_on_hand: number;
+  reorder_level: number;
+  units_to_order: number;
+  unit_cost: number;
+  reorder_cost: number;
+}
 
-const LOW_STOCK_DRAWER_SKUS = [
-  { sku: "SKU-9901", name: "Ergonomic Mesh Executive Chair", currentStock: 12, minThreshold: 50, leadDays: 5, supplier: "Apex Furniture" },
-  { sku: "SKU-4012", name: "Ultra-Thin OLED Monitor 27-inch", currentStock: 8, minThreshold: 30, leadDays: 7, supplier: "VisionTech India" },
-  { sku: "SKU-1829", name: "Smart Keyless Door Lock V2", currentStock: 15, minThreshold: 40, leadDays: 4, supplier: "SecureHome Labs" },
-];
+interface CategoryTurnover {
+  category: string;
+  total_sold: number;
+  avg_inventory: number;
+  turnover_ratio: number;
+}
+
+interface StockoutItem {
+  product_name: string;
+  category: string;
+  total_snapshots: number;
+  zero_stock_snapshots: number;
+  stockout_pct: number;
+}
+
+interface InventoryApiResponse {
+  turnover?: {
+    by_category?: CategoryTurnover[];
+    by_store?: Array<{
+      city: string;
+      store_id?: string;
+      total_sold: number;
+      avg_inventory: number;
+      turnover_ratio: number;
+    }>;
+  };
+  stockout_rate?: {
+    overall?: {
+      total_records: number;
+      stockout_records: number;
+      stockout_pct: number;
+    };
+    frequently_stocked_out?: StockoutItem[];
+  };
+  reorder_alerts?: ReorderAlert[];
+}
 
 export default function InventoryPage() {
   const { selectedStore } = useStore();
-  const mult = selectedStore.multiplier;
+  const endpoint =
+    selectedStore.id && selectedStore.id !== "all"
+      ? `/api/inventory?store_id=${selectedStore.id}`
+      : "/api/inventory";
+
+  const { data, loading, error, refetch } = useApi<InventoryApiResponse>(endpoint);
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [poGenerated, setPoGenerated] = useState<string | null>(null);
 
-  const handleGeneratePO = (sku: string) => {
-    setPoGenerated(`Purchase Order generated for ${sku}. Transmitted to supplier.`);
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={refetch} />;
+  }
+
+  const stockoutOverall = data?.stockout_rate?.overall;
+  const reorderAlerts = data?.reorder_alerts || [];
+  const categoryTurnovers = data?.turnover?.by_category || [];
+  const frequentStockouts = data?.stockout_rate?.frequently_stocked_out || [];
+
+  if (!data || !stockoutOverall) {
+    return (
+      <EmptyState
+        title="No inventory health data"
+        description="Run scripts/kpi_analysis.sh to compute inventory turnover and stockout metrics."
+        onReset={refetch}
+        resetText="Retry fetch"
+      />
+    );
+  }
+
+  const totalReorderCost = reorderAlerts.reduce((acc, curr) => acc + (curr.reorder_cost || 0), 0);
+  const avgTurnover =
+    categoryTurnovers.length > 0
+      ? categoryTurnovers.reduce((acc, curr) => acc + curr.turnover_ratio, 0) / categoryTurnovers.length
+      : 0;
+
+  const handleGeneratePO = (name: string, store: string) => {
+    setPoGenerated(`Purchase Order created for ${name} at ${store}. Transmitted to supplier.`);
     setTimeout(() => setPoGenerated(null), 3000);
   };
 
@@ -48,14 +133,14 @@ export default function InventoryPage() {
       {/* 1. PageHeader */}
       <PageHeader
         title="Inventory & Stock Management"
-        subtitle={`Warehouse distribution, product sales velocity, and low-stock reorder replenishment for ${selectedStore.name}`}
+        subtitle={`Warehouse distribution, product stock velocity, and replenishment alerts for ${selectedStore.name}`}
         action={
           <button
             onClick={() => setIsDrawerOpen(true)}
             className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
           >
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span>Low-Stock Alert Drawer ({Math.round(3 * mult)})</span>
+            <span>Low-Stock Alerts ({reorderAlerts.length})</span>
           </button>
         }
       />
@@ -66,92 +151,100 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* 2. Row of KPI cards (max 4, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
+      {/* 2. Row of KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Total Products in Stock"
-          value={fmtNum(Math.round(14200 * mult))}
-          change="98.2% Availability"
-          trend="up"
-          icon={Package}
-          subtitle="Catalog items currently available across 5 warehouses"
-          sparklineData={[13200, 13500, 13700, 13900, 14000, 14100, 14200]}
+          title="Stockout Rate"
+          value={`${stockoutOverall.stockout_pct}%`}
+          change={`${fmtNum(stockoutOverall.stockout_records)} incidents`}
+          trend="down"
+          icon={AlertTriangle}
+          subtitle="Percentage of zero-stock snapshot events"
+          sparklineData={[6.2, 5.9, 5.7, 5.5, 5.3, 5.2, stockoutOverall.stockout_pct]}
         />
         <KpiCard
-          title="Inventory Turnover Rate"
-          value="8.4x / year"
+          title="Mean Inventory Turnover"
+          value={`${avgTurnover.toFixed(1)}x / yr`}
           change="+1.2x efficiency"
           trend="up"
           icon={Truck}
-          subtitle="Times entire stock is sold and replaced per year"
+          subtitle="Annualized stock turnover across catalog categories"
           sparklineData={[6.8, 7.1, 7.4, 7.8, 8.0, 8.2, 8.4]}
         />
         <KpiCard
-          title="Stagnant Unsold Stock"
-          value={fmtCurrency(Math.round(4250000 * mult))}
-          change="-14.2% cleared"
-          trend="up"
-          icon={AlertTriangle}
-          subtitle="Value of items with zero customer orders in 90+ days"
-        />
-        <KpiCard
-          title="Critical Low-Stock Items"
-          value={fmtNum(Math.round(18 * mult))}
-          change="Requires reorder"
+          title="Urgent Reorder Items"
+          value={fmtNum(reorderAlerts.length)}
+          change="Action required"
           trend="down"
           icon={ShoppingCart}
-          subtitle="Products below minimum safety threshold"
+          subtitle="Products currently below safety stock levels"
+        />
+        <KpiCard
+          title="Estimated Reorder Outlay"
+          value={fmtCurrency(totalReorderCost)}
+          change="Replenishment budget"
+          trend="neutral"
+          icon={Package}
+          subtitle="Total procurement capital for active low-stock alerts"
         />
       </div>
 
-      {/* 3. Consistent 12-column grid with gap-6 */}
+      {/* 3. 12-column grid */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Warehouse Regional Distribution Map Grid */}
-        <div className="col-span-12 lg:col-span-8">
+        {/* Category Turnover Chart */}
+        <div className="col-span-12 lg:col-span-7">
           <ChartCard
-            title="Distribution Center Network"
-            subtitle="Current warehouse capacity utilization and assigned product counts"
+            title="Inventory Turnover by Category"
+            subtitle="Annual turnover ratio comparison across retail merchandise categories"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 my-1">
-              {WAREHOUSES.map((wh) => (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryTurnovers} margin={{ top: 10, right: 10, left: 0, bottom: 25 }}>
+                  <CartesianGrid {...CHART_GRID_PROPS} />
+                  <XAxis
+                    dataKey="category"
+                    {...CHART_AXIS_PROPS}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={35}
+                  />
+                  <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v) => `${v}x`} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => `${v}x`} />} />
+                  <Bar
+                    dataKey="turnover_ratio"
+                    name="Turnover Ratio"
+                    fill={CHART_COLORS[0]}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+        </div>
+
+        {/* High Frequency Stockout Items */}
+        <div className="col-span-12 lg:col-span-5">
+          <ChartCard
+            title="Frequent Stockout Watchlist"
+            subtitle="Products experiencing highest frequency of stock depletion"
+          >
+            <div className="space-y-3 my-1">
+              {frequentStockouts.slice(0, 5).map((item, idx) => (
                 <div
-                  key={wh.id}
-                  className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors space-y-3"
+                  key={idx}
+                  className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3 text-xs"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-slate-900 truncate">{wh.name}</span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-lg text-xs font-medium border flex-shrink-0 ${
-                        wh.status === "Near Capacity"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      }`}
-                    >
-                      {wh.status}
-                    </span>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">{item.product_name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{item.category}</div>
                   </div>
-                  <div className="text-xs text-slate-500">{wh.region}</div>
-                  <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
-                    <span className="text-slate-500">Products Stored</span>
-                    <span className="font-semibold text-slate-900 tabular-nums">
-                      {fmtNum(Math.round(wh.skus * mult))}
+                  <div className="text-right flex-shrink-0">
+                    <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                      {item.stockout_pct}% Stockout
                     </span>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs text-slate-500 mb-1">
-                      <span>Occupied Space</span>
-                      <span className="font-medium text-slate-700">{wh.capacity}</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          wh.status === "Near Capacity" ? "bg-amber-500" : "bg-emerald-600"
-                        }`}
-                        style={{ width: `${wh.pct}%` }}
-                      />
+                    <div className="text-xs text-slate-400 mt-1">
+                      {item.zero_stock_snapshots} / {item.total_snapshots} checks
                     </div>
                   </div>
                 </div>
@@ -160,89 +253,45 @@ export default function InventoryPage() {
           </ChartCard>
         </div>
 
-        {/* Product Sales Velocity Classification */}
-        <div className="col-span-12 lg:col-span-4">
-          <ChartCard
-            title="Product Sales Velocity"
-            subtitle="Inventory classified by sales turnaround speed"
-          >
-            <div className="space-y-3 my-1">
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-emerald-900">Fast Moving Items</span>
-                  <span className="text-xs font-medium bg-white text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    &lt; 14 Days
-                  </span>
-                </div>
-                <div className="text-xl font-semibold text-slate-900 tabular-nums">
-                  {fmtNum(Math.round(2840 * mult))} products
-                </div>
-                <p className="text-xs text-slate-600">High turnover items with automated reordering</p>
-              </div>
-
-              <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-lg space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-indigo-900">Steady Moving Items</span>
-                  <span className="text-xs font-medium bg-white text-indigo-700 px-2 py-0.5 rounded-lg border border-indigo-200">
-                    14–45 Days
-                  </span>
-                </div>
-                <div className="text-xl font-semibold text-slate-900 tabular-nums">
-                  {fmtNum(Math.round(8920 * mult))} products
-                </div>
-                <p className="text-xs text-slate-600">Stable demand items with predictable replenishments</p>
-              </div>
-
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-lg space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-rose-900">Slow Moving / Stagnant</span>
-                  <span className="text-xs font-medium bg-white text-rose-700 px-2 py-0.5 rounded-lg border border-rose-200">
-                    &gt; 90 Days
-                  </span>
-                </div>
-                <div className="text-xl font-semibold text-slate-900 tabular-nums">
-                  {fmtNum(Math.round(410 * mult))} products
-                </div>
-                <p className="text-xs text-slate-600">Stagnant stock candidates for clearance promotions</p>
-              </div>
-            </div>
-          </ChartCard>
-        </div>
-
         {/* Low Stock Replenishment Table */}
         <div className="col-span-12">
           <ChartCard
             title="Urgent Low-Stock Reorder List"
-            subtitle="Products that have dropped below safety thresholds and require purchase orders"
+            subtitle="Stores and products that have dropped below safety thresholds and require purchase orders"
           >
-            {LOW_STOCK_DRAWER_SKUS.length === 0 ? (
-              <EmptyState title="No low stock items" description="All warehouse inventory is above minimum threshold levels." />
+            {reorderAlerts.length === 0 ? (
+              <EmptyState title="No low stock alerts" description="All store inventory is above minimum threshold levels." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-medium">
                     <tr>
-                      <th className="p-3">Product Code</th>
+                      <th className="p-3">Store</th>
                       <th className="p-3">Product Name</th>
-                      <th className="p-3">Assigned Supplier</th>
-                      <th className="p-3 text-right">Current Stock</th>
-                      <th className="p-3 text-right">Min Threshold</th>
-                      <th className="p-3 text-right">Lead Time</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3 text-right">In Stock</th>
+                      <th className="p-3 text-right">Threshold</th>
+                      <th className="p-3 text-right">Suggested Order</th>
+                      <th className="p-3 text-right">Est. Outlay</th>
                       <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-sans">
-                    {LOW_STOCK_DRAWER_SKUS.map((item) => (
-                      <tr key={item.sku} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-mono font-medium text-indigo-600">{item.sku}</td>
-                        <td className="p-3 font-semibold text-slate-900">{item.name}</td>
-                        <td className="p-3 text-slate-600">{item.supplier}</td>
-                        <td className="p-3 text-rose-700 font-semibold text-right tabular-nums">{item.currentStock} units</td>
-                        <td className="p-3 text-slate-600 text-right tabular-nums">{item.minThreshold} units</td>
-                        <td className="p-3 text-slate-600 text-right tabular-nums">{item.leadDays} days</td>
+                    {reorderAlerts.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-900 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{item.store_city} ({item.store_id})</span>
+                        </td>
+                        <td className="p-3 font-medium text-slate-900">{item.product_name}</td>
+                        <td className="p-3 text-slate-500">{item.category}</td>
+                        <td className="p-3 text-rose-700 font-semibold text-right tabular-nums">{item.quantity_on_hand}</td>
+                        <td className="p-3 text-slate-600 text-right tabular-nums">{item.reorder_level}</td>
+                        <td className="p-3 text-indigo-600 font-semibold text-right tabular-nums">+{item.units_to_order}</td>
+                        <td className="p-3 font-semibold text-slate-900 text-right tabular-nums">{fmtCurrency(item.reorder_cost)}</td>
                         <td className="p-3 text-right">
                           <button
-                            onClick={() => handleGeneratePO(item.sku)}
+                            onClick={() => handleGeneratePO(item.product_name, item.store_city)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium rounded-lg transition-colors text-xs"
                           >
                             <ShoppingCart className="w-3.5 h-3.5 text-indigo-600" />
@@ -259,11 +308,11 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Emergency Reorder Side Drawer Overlay */}
+      {/* Low-Stock Drawer */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/40 animate-fade-in">
-          <div className="w-full max-w-md bg-white border-l border-slate-200 h-full p-6 flex flex-col justify-between shadow-sm">
-            <div>
+          <div className="w-full max-w-md bg-white border-l border-slate-200 h-full p-6 flex flex-col justify-between shadow-sm overflow-hidden">
+            <div className="overflow-y-auto pr-1">
               <div className="flex items-center justify-between pb-4 border-b border-slate-200">
                 <div className="flex items-center gap-2 text-amber-600">
                   <AlertTriangle className="w-5 h-5" />
@@ -279,23 +328,23 @@ export default function InventoryPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                {LOW_STOCK_DRAWER_SKUS.map((item) => (
+                {reorderAlerts.slice(0, 10).map((item, idx) => (
                   <div
-                    key={item.sku}
+                    key={idx}
                     className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-semibold text-indigo-600">{item.sku}</span>
+                      <span className="font-semibold text-indigo-600">{item.store_city} ({item.store_id})</span>
                       <span className="px-2 py-0.5 bg-rose-50 text-rose-700 text-xs font-medium rounded-lg border border-rose-200">
-                        Stock: {item.currentStock} / Min {item.minThreshold}
+                        In Stock: {item.quantity_on_hand} / Min {item.reorder_level}
                       </span>
                     </div>
-                    <div className="font-semibold text-slate-900">{item.name}</div>
+                    <div className="font-semibold text-slate-900">{item.product_name}</div>
                     <div className="text-xs text-slate-500">
-                      Supplier: {item.supplier} • Lead Time: {item.leadDays} days
+                      Reorder: +{item.units_to_order} units • Cost: {fmtCurrency(item.reorder_cost)}
                     </div>
                     <button
-                      onClick={() => handleGeneratePO(item.sku)}
+                      onClick={() => handleGeneratePO(item.product_name, item.store_city)}
                       className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors mt-2"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" /> 1-Click Generate PO
@@ -305,7 +354,7 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200">
+            <div className="pt-4 border-t border-slate-200 mt-4">
               <button
                 onClick={() => setIsDrawerOpen(false)}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg border border-slate-200 transition-colors text-xs"

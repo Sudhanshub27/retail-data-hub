@@ -6,7 +6,7 @@ set -e
 
 PROJ_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJ_DIR"
-source .venv/bin/activate
+[ -f .venv/bin/activate ] && source .venv/bin/activate || true
 
 echo "============================================================"
 echo "STEP 2 — INGESTING TO BRONZE LAYER"

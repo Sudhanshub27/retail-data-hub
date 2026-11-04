@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
+import { THEME_COLORS } from "@/lib/theme";
 
 interface DetailRow {
   label: string;
@@ -20,6 +21,26 @@ interface DetailsModalProps {
   icon?: LucideIcon;
   rows: DetailRow[];
   footer?: string;
+}
+
+function getRowColorClass(c?: string) {
+  if (c === THEME_COLORS.emerald || c === "#059669") return "bg-emerald-600";
+  if (c === THEME_COLORS.amber || c === "#d97706") return "bg-amber-600";
+  if (c === THEME_COLORS.rose || c === "#e11d48") return "bg-rose-600";
+  if (c === THEME_COLORS.slate || c === "#64748b") return "bg-slate-500";
+  return "bg-indigo-600";
+}
+
+function getWidthClass(pct?: number) {
+  if (!pct || pct <= 0) return "w-0";
+  if (pct >= 90) return "w-full";
+  if (pct >= 75) return "w-3/4";
+  if (pct >= 60) return "w-3/5";
+  if (pct >= 50) return "w-1/2";
+  if (pct >= 33) return "w-1/3";
+  if (pct >= 25) return "w-1/4";
+  if (pct >= 20) return "w-1/5";
+  return "w-1/12";
 }
 
 export default function DetailsModal({
@@ -39,44 +60,58 @@ export default function DetailsModal({
 
   /* Close on Escape */
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
-    };
-    if (open) window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  if (!open || !mounted) return null;
+  /* Prevent background scroll when open */
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  if (!mounted || !open) return null;
 
   return createPortal(
     <div
-      ref={overlayRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
+      aria-labelledby="details-modal-title"
+      ref={overlayRef}
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
     >
-      <div
-        className="relative w-full max-w-lg bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col overflow-hidden max-h-[85vh] animate-scale-in"
-      >
+      <div className="relative w-full max-w-lg bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden animate-scale-in flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 lg:p-6 border-b border-slate-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
             {Icon && (
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
                 <Icon className="w-4 h-4" />
               </div>
             )}
-            <h2 id="modal-title" className="text-base font-semibold text-slate-900 tracking-tight">
+            <h2
+              id="details-modal-title"
+              className="text-base font-semibold text-slate-900"
+            >
               {title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
@@ -93,8 +128,7 @@ export default function DetailsModal({
               <div className="flex items-center gap-3">
                 {row.color && (
                   <div
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: row.color }}
+                    className={`w-3 h-3 rounded-full flex-shrink-0 ${getRowColorClass(row.color)}`}
                   />
                 )}
                 <div>
@@ -127,11 +161,7 @@ export default function DetailsModal({
                 .map((r, i) => (
                   <div
                     key={i}
-                    className="h-full transition-all duration-300"
-                    style={{
-                      width: `${r.percentage}%`,
-                      backgroundColor: r.color || "#4f46e5",
-                    }}
+                    className={`h-full transition-all duration-300 ${getWidthClass(r.percentage)} ${getRowColorClass(r.color || THEME_COLORS.indigo)}`}
                   />
                 ))}
             </div>

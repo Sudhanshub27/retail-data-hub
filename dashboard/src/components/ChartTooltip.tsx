@@ -1,4 +1,5 @@
 import React from "react";
+import { THEME_COLORS } from "@/lib/theme";
 
 interface ChartTooltipPayload {
   name?: string;
@@ -15,6 +16,14 @@ interface ChartTooltipProps {
   formatter?: (val: any) => string;
 }
 
+function getDotClass(color?: string) {
+  if (color === THEME_COLORS.emerald || color === "#059669") return "bg-emerald-600";
+  if (color === THEME_COLORS.amber || color === "#d97706") return "bg-amber-600";
+  if (color === THEME_COLORS.rose || color === "#e11d48") return "bg-rose-600";
+  if (color === THEME_COLORS.slate || color === "#64748b") return "bg-slate-500";
+  return "bg-indigo-600";
+}
+
 export default function ChartTooltip({
   active,
   payload,
@@ -28,7 +37,7 @@ export default function ChartTooltip({
       {label && <div className="font-semibold text-slate-900 mb-1">{label}</div>}
       <div className="space-y-1">
         {payload.map((entry, index) => {
-          const color = entry.color || entry.fill || "#4f46e5";
+          const color = entry.color || entry.fill || THEME_COLORS.indigo;
           const formattedValue =
             formatter && entry.value !== undefined
               ? formatter(entry.value)
@@ -39,8 +48,7 @@ export default function ChartTooltip({
           return (
             <div key={`tooltip-item-${index}`} className="flex items-center gap-2">
               <span
-                className="w-2 h-2 rounded-full inline-block flex-shrink-0"
-                style={{ backgroundColor: color }}
+                className={`w-2 h-2 rounded-full inline-block flex-shrink-0 ${getDotClass(color)}`}
               />
               <span className="text-slate-500 font-medium">
                 {entry.name || entry.dataKey}:

@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   TrendingUp,
-  AlertTriangle,
   Sparkles,
-  Package,
+  Layers,
   IndianRupee,
+  CheckCircle2,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import ChartTooltip from "@/components/ChartTooltip";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
+import { PageSkeleton } from "@/components/Skeleton";
 import {
   AreaChart,
   Area,
@@ -21,143 +23,230 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Line,
   Legend,
 } from "recharts";
 import { useStore } from "@/context/StoreContext";
-import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
+import { useApi } from "@/hooks/useApi";
+import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS, LEGEND_PROPS } from "@/lib/theme";
 import { fmtCurrency, fmtNum } from "@/lib/format";
 
-const FORECAST_BASE = [
-  { day: "Day 1", actual: 4200, predicted: 4200, ci80Upper: 4400, ci80Lower: 4000, ci95Upper: 4600, ci95Lower: 3800 },
-  { day: "Day 3", actual: 4800, predicted: 4750, ci80Upper: 5000, ci80Lower: 4500, ci95Upper: 5200, ci95Lower: 4300 },
-  { day: "Day 7", actual: 5100, predicted: 5150, ci80Upper: 5500, ci80Lower: 4800, ci95Upper: 5800, ci95Lower: 4500 },
-  { day: "Day 10", actual: null, predicted: 5600, ci80Upper: 6100, ci80Lower: 5100, ci95Upper: 6500, ci95Lower: 4700 },
-  { day: "Day 14", actual: null, predicted: 6200, ci80Upper: 6800, ci80Lower: 5600, ci95Upper: 7300, ci95Lower: 5100 },
-  { day: "Day 21", actual: null, predicted: 6900, ci80Upper: 7700, ci80Lower: 6100, ci95Upper: 8200, ci95Lower: 5600 },
-  { day: "Day 30", actual: null, predicted: 7500, ci80Upper: 8500, ci80Lower: 6500, ci95Upper: 9200, ci95Lower: 5800 },
-];
+interface ForecastItem {
+  date: string;
+  category: string;
+  predicted_revenue: number;
+  lower: number;
+  upper: number;
+}
+
+interface CategorySummaryItem {
+  category: string;
+  next_30d_predicted: number;
+  last_30d_actual: number;
+  trend: string;
+  change_pct: number;
+}
+
+interface ForecastApiResponse {
+  summary?: {
+    total_30d_predicted_revenue: number;
+    top_growth_category: string;
+    top_growth_pct: number;
+    categories_trained: number;
+  };
+  model_metrics?: {
+    avg_r2: number;
+    avg_mae: number;
+    avg_mse: number;
+  };
+  category_summary?: CategorySummaryItem[];
+  forecast?: ForecastItem[];
+}
 
 export default function ForecastPage() {
   const { selectedStore } = useStore();
-  const mult = selectedStore.multiplier;
+  const { data, loading, error, refetch } = useApi<ForecastApiResponse>("/api/forecast");
 
   // What-If Scenario Sliders
   const [priceChange, setPriceChange] = useState(0); // -20% to +20%
   const [promoDiscount, setPromoDiscount] = useState(10); // 0% to 30%
   const [marketingSpend, setMarketingSpend] = useState(250000); // ₹50k to ₹10L
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
-  // Calculate dynamic demand modifier based on what-if scenario
-  const elasticityFactor = 1 + (-priceChange * 0.015) + ((promoDiscount - 10) * 0.008) + (((marketingSpend - 250000) / 100000) * 0.05);
+  const summary = data?.summary;
+  const metrics = data?.model_metrics;
+  const categorySummaries = data?.category_summary || [];
+  const rawForecast = useMemo(() => data?.forecast || [], [data?.forecast]);
 
-  const dynamicForecastData = FORECAST_BASE.map((item) => {
-    const modPredicted = Math.round(item.predicted * elasticityFactor * mult);
-    return {
-      ...item,
-      actual: item.actual !== null ? Math.round(item.actual * mult) : null,
-      predicted: modPredicted,
-      ci80Upper: Math.round(item.ci80Upper * elasticityFactor * mult),
-      ci80Lower: Math.round(item.ci80Lower * elasticityFactor * mult),
-      ci95Upper: Math.round(item.ci95Upper * elasticityFactor * mult),
-      ci95Lower: Math.round(item.ci95Lower * elasticityFactor * mult),
-    };
-  });
+  // Calculate elasticity adjustment factor
+  const elasticityFactor =
+    1 +
+    -priceChange * 0.015 +
+    (promoDiscount - 10) * 0.008 +
+    ((marketingSpend - 250000) / 100000) * 0.05;
 
-  const projected30DayUnits = dynamicForecastData[dynamicForecastData.length - 1].predicted * 30;
-  const projected30DayRev = Math.round(projected30DayUnits * 1180);
+  const chartData = useMemo(() => {
+    if (!rawForecast.length) return [];
+    const filtered =
+      selectedCategory === "all"
+        ? rawForecast
+        : rawForecast.filter((f) => f.category === selectedCategory);
+
+    // Group by date
+    const byDate = new Map<string, { predicted: number; lower: number; upper: number }>();
+    filtered.forEach((item) => {
+      const prev = byDate.get(item.date) || { predicted: 0, lower: 0, upper: 0 };
+      byDate.set(item.date, {
+        predicted: prev.predicted + item.predicted_revenue,
+        lower: prev.lower + item.lower,
+        upper: prev.upper + item.upper,
+      });
+    });
+
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => {
+        const shortDate = date.slice(5); // MM-DD
+        return {
+          date: shortDate,
+          predicted: Math.round(vals.predicted * elasticityFactor),
+          lower: Math.round(vals.lower * elasticityFactor),
+          upper: Math.round(vals.upper * elasticityFactor),
+        };
+      });
+  }, [rawForecast, selectedCategory, elasticityFactor]);
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={refetch} />;
+  }
+
+  if (!data || !summary || !summary.total_30d_predicted_revenue) {
+    return (
+      <EmptyState
+        title="No demand forecast data"
+        description="Run src/ml/demand_forecast.py to train PyTorch LSTM model and generate demand forecasts."
+        onReset={refetch}
+        resetText="Retry fetch"
+      />
+    );
+  }
+
+  const base30dRevenue = summary.total_30d_predicted_revenue;
+  const simulated30dRevenue = Math.round(base30dRevenue * elasticityFactor);
 
   return (
     <div className="space-y-6">
       {/* 1. PageHeader */}
       <PageHeader
         title="Demand Forecasting & Predictions"
-        subtitle={`Expected sales trajectory, stock depletion risk, and pricing scenario simulation for ${selectedStore.name}`}
+        subtitle={`PyTorch LSTM predictive demand, confidence intervals, and scenario simulations for ${selectedStore.name}`}
       />
 
-      {/* 2. Row of KPI cards (max 4, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
+      {/* 2. Row of KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="7-Day Depletion Risk"
-          value={`${Math.round(4 * mult)} Products`}
-          change="Urgent reorder"
-          trend="down"
-          icon={AlertTriangle}
-          subtitle="Products likely to exhaust warehouse stock within 7 days"
-        />
-        <KpiCard
-          title="14-Day Depletion Buffer"
-          value={`${Math.round(14 * mult)} Products`}
-          change="Lead time alert"
-          trend="down"
-          icon={Package}
-          subtitle="Products nearing safety threshold before supplier replenishment"
-        />
-        <KpiCard
-          title="30-Day Estimated Demand"
-          value={`${fmtNum(projected30DayUnits)} Units`}
-          change="+14.2% Growth"
-          trend="up"
-          icon={TrendingUp}
-          subtitle="Estimated total units required over the next 30 days"
-          sparklineData={[4200, 4750, 5150, 5600, 6200, 6900, 7500]}
-        />
-        <KpiCard
-          title="Projected 30-Day Sales"
-          value={fmtCurrency(projected30DayRev)}
-          change="+9.8% vs Target"
+          title="30-Day Predicted Demand"
+          value={fmtCurrency(simulated30dRevenue)}
+          change={`Baseline: ${fmtCurrency(base30dRevenue)}`}
           trend="up"
           icon={IndianRupee}
-          subtitle="Estimated revenue forecast under current simulation conditions"
-          sparklineData={[38, 41, 45, 52, 60, 68, 75]}
+          subtitle="Forecasted aggregate gross sales revenue"
+          sparklineData={[42, 45, 48, 52, 58, 62, 68]}
+        />
+        <KpiCard
+          title="Top Growth Category"
+          value={summary.top_growth_category}
+          change={`+${summary.top_growth_pct}% 30-day projection`}
+          trend="up"
+          icon={TrendingUp}
+          subtitle="Highest momentum merchandise division"
+        />
+        <KpiCard
+          title="Trained Deep Models"
+          value={`${summary.categories_trained} Categories`}
+          change="LSTM Architecture"
+          trend="neutral"
+          icon={Layers}
+          subtitle="Category-specific PyTorch sequence forecasters"
+        />
+        <KpiCard
+          title="Model Mean Error (MAE)"
+          value={fmtCurrency(metrics?.avg_mae ?? 0)}
+          change="Cross-category average"
+          trend="neutral"
+          icon={CheckCircle2}
+          subtitle="Average absolute daily deviation"
         />
       </div>
 
-      {/* 3. Consistent 12-column grid with gap-6 */}
+      {/* 3. 12-column grid */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Main Forecast Curve with 80% & 95% Confidence Intervals */}
+        {/* Main Forecast Curve with Confidence Intervals */}
         <div className="col-span-12">
           <ChartCard
-            title="Sales Demand Forecast & Confidence Bounds"
-            subtitle="Past sales volume compared with expected future demand; shaded zones display 80% and 95% prediction confidence ranges"
+            title="30-Day Demand Forecast & Confidence Bounds"
+            subtitle="PyTorch LSTM projected daily revenue with upper and lower confidence intervals"
+            action={
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-medium focus:border-indigo-600"
+              >
+                <option value="all">All Categories</option>
+                {categorySummaries.map((c) => (
+                  <option key={c.category} value={c.category}>
+                    {c.category}
+                  </option>
+                ))}
+              </select>
+            }
           >
             <div className="h-72 w-full">
-              {dynamicForecastData.length === 0 ? (
+              {chartData.length === 0 ? (
                 <EmptyState title="No forecast data" description="Unable to generate forecast projection." />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dynamicForecastData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="ci95" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.15} />
+                      <linearGradient id="ciBand" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.2} />
                         <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="ci80" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={CHART_COLORS[1]} stopOpacity={0.25} />
-                        <stop offset="95%" stopColor={CHART_COLORS[1]} stopOpacity={0.05} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid {...CHART_GRID_PROPS} />
-                    <XAxis dataKey="day" {...CHART_AXIS_PROPS} />
-                    <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v) => fmtNum(v)} />
-                    <Tooltip content={<ChartTooltip formatter={fmtNum} />} />
-                    <Legend
-                      verticalAlign="top"
-                      align="right"
-                      height={36}
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: "12px", color: "#64748b" }}
+                    <XAxis dataKey="date" {...CHART_AXIS_PROPS} />
+                    <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v) => fmtCurrency(v)} />
+                    <Tooltip content={<ChartTooltip formatter={fmtCurrency} />} />
+                    <Legend {...LEGEND_PROPS} />
+                    <Area
+                      type="monotone"
+                      dataKey="upper"
+                      name="Upper Bound"
+                      stroke={CHART_COLORS[1]}
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                      fill="url(#ciBand)"
                     />
-
-                    {/* 95% CI Shaded Area */}
-                    <Area type="monotone" dataKey="ci95Upper" name="95% Range High" stroke="none" fill="url(#ci95)" />
-                    <Area type="monotone" dataKey="ci95Lower" name="95% Range Low" stroke="none" fill="url(#ci95)" />
-
-                    {/* 80% CI Shaded Area */}
-                    <Area type="monotone" dataKey="ci80Upper" name="80% Range High" stroke="none" fill="url(#ci80)" />
-
-                    {/* Forecast & Actual Lines */}
-                    <Line type="monotone" dataKey="predicted" name="Expected Sales" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ fill: CHART_COLORS[0] }} />
-                    <Line type="monotone" dataKey="actual" name="Recorded Sales" stroke={CHART_COLORS[2]} strokeWidth={2} dot={{ fill: CHART_COLORS[2] }} />
+                    <Area
+                      type="monotone"
+                      dataKey="predicted"
+                      name="Predicted Revenue"
+                      stroke={CHART_COLORS[0]}
+                      strokeWidth={2}
+                      fill="none"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="lower"
+                      name="Lower Bound"
+                      stroke={CHART_COLORS[2]}
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                      fill="none"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -165,14 +254,70 @@ export default function ForecastPage() {
           </ChartCard>
         </div>
 
-        {/* Interactive What-If Scenario Slider Controls */}
+        {/* Category Breakdown Table */}
+        <div className="col-span-12">
+          <ChartCard
+            title="Category Growth & 30-Day Outlook"
+            subtitle="Model forecast comparisons against the preceding 30-day baseline"
+          >
+            {categorySummaries.length === 0 ? (
+              <EmptyState title="No categories found" description="No category predictions available." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-medium">
+                    <tr>
+                      <th className="p-3">Category</th>
+                      <th className="p-3 text-right">Last 30D Actual</th>
+                      <th className="p-3 text-right">Next 30D Forecast</th>
+                      <th className="p-3 text-right">Projected Change</th>
+                      <th className="p-3">Trend Direction</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-sans">
+                    {categorySummaries.map((c, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-900">{c.category}</td>
+                        <td className="p-3 text-slate-600 text-right tabular-nums">
+                          {fmtCurrency(c.last_30d_actual)}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-900 text-right tabular-nums">
+                          {fmtCurrency(c.next_30d_predicted)}
+                        </td>
+                        <td
+                          className={`p-3 font-semibold text-right tabular-nums ${
+                            c.change_pct >= 0 ? "text-emerald-700" : "text-rose-700"
+                          }`}
+                        >
+                          {c.change_pct >= 0 ? `+${c.change_pct}%` : `${c.change_pct}%`}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${
+                              c.trend === "rising"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {c.trend}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </ChartCard>
+        </div>
+
+        {/* Interactive Scenario Controls */}
         <div className="col-span-12">
           <ChartCard
             title="Price & Promotion Simulator"
-            subtitle="Test how adjusting retail price, promotional discounts, or ad budgets impacts projected buyer demand"
+            subtitle="Adjust retail price, promotional discounts, or ad budgets to evaluate predicted demand elasticity"
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-2">
-              {/* Price Change Slider */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-slate-800">Retail Price Adjustment</span>
@@ -196,7 +341,6 @@ export default function ForecastPage() {
                 </div>
               </div>
 
-              {/* Promo Discount Slider */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-slate-800">Promotional Discount Rate</span>
@@ -218,7 +362,6 @@ export default function ForecastPage() {
                 </div>
               </div>
 
-              {/* Marketing Spend Slider */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-slate-800">Monthly Ad Budget</span>
@@ -236,26 +379,26 @@ export default function ForecastPage() {
                 />
                 <div className="flex justify-between text-xs text-slate-500 font-medium">
                   <span>₹50K Budget</span>
-                  <span>₹5L Standard</span>
+                  <span>₹2.5L Standard</span>
                   <span>₹10L Blitz</span>
                 </div>
               </div>
             </div>
 
-            {/* Dynamic Simulation Result Pill */}
+            {/* Renamed to Preview Demand Response */}
             <div className="p-4 mt-4 bg-indigo-50 border border-indigo-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0" />
                 <div>
-                  <div className="text-xs font-semibold text-indigo-900">Simulated Demand Response</div>
+                  <div className="text-xs font-semibold text-indigo-900">Preview Demand Response</div>
                   <div className="text-sm text-slate-700 font-medium">
                     Adjusted Demand Rate: <span className="text-emerald-700 font-semibold">{((elasticityFactor - 1) >= 0 ? "+" : "") + ((elasticityFactor - 1) * 100).toFixed(1)}%</span> compared to standard baseline
                   </div>
                 </div>
               </div>
               <div className="sm:text-right">
-                <div className="text-xs uppercase font-medium text-slate-500">Projected 30-Day Sales</div>
-                <div className="text-xl font-semibold text-emerald-700 tabular-nums">{fmtCurrency(projected30DayRev)}</div>
+                <div className="text-xs uppercase font-medium text-slate-500">Preview 30-Day Sales</div>
+                <div className="text-xl font-semibold text-emerald-700 tabular-nums">{fmtCurrency(simulated30dRevenue)}</div>
               </div>
             </div>
           </ChartCard>

@@ -1,46 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { API_BASE } from "@/config";
 
-const apiCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL_MS = 60 * 1000; // 1 minute in-memory stale-while-revalidate cache
-
 export function useApi<T>(endpoint: string) {
-    const cached = apiCache.get(endpoint);
-    const isValid = cached && (Date.now() - cached.timestamp < CACHE_TTL_MS);
-
-    const [data, setData] = useState<T | null>(isValid ? cached.data : null);
-    const [loading, setLoading] = useState(!isValid);
+    const [data, setData] = useState<T | null>(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [tick, setTick] = useState(0);
+
+    const refetch = useCallback(() => {
+        setTick((prev) => prev + 1);
+    }, []);
 
     useEffect(() => {
-        let cancelled = false;
-        if (!isValid) setLoading(true);
+        const controller = new AbortController();
+        setLoading(true);
+        setError(null);
 
-        fetch(`${API_BASE}${endpoint}`)
-            .then((res) => {
-                if (!res.ok) throw new Error(`API error: ${res.status}`);
+        fetch(`${API_BASE}${endpoint}`, { signal: controller.signal })
+            .then(async (res) => {
+                if (!res.ok) {
+                    throw new Error(`API error: ${res.status}`);
+                }
                 return res.json();
             })
             .then((json) => {
-                if (!cancelled) {
-                    apiCache.set(endpoint, { data: json, timestamp: Date.now() });
+                if (json && typeof json === "object" && "error" in json) {
+                    setError(String(json.error));
+                    setData(null);
+                } else {
                     setData(json);
-                    setLoading(false);
+                    setError(null);
                 }
+                setLoading(false);
             })
             .catch((err) => {
-                if (!cancelled) {
-                    setError(err.message);
-                    setLoading(false);
-                }
+                if (err.name === "AbortError") return;
+                setError(err.message || "Failed to fetch from backend");
+                setData(null);
+                setLoading(false);
             });
 
         return () => {
-            cancelled = true;
+            controller.abort();
         };
-    }, [endpoint, isValid]);
+    }, [endpoint, tick]);
 
-    return { data, loading, error };
+    return { data, loading, error, refetch };
 }

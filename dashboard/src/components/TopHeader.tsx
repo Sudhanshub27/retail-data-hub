@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import {
   Search,
   Upload,
@@ -12,16 +13,18 @@ import {
   Command,
   Store,
 } from "lucide-react";
-import { useStore, STORE_OPTIONS } from "@/context/StoreContext";
+import { useStore } from "@/context/StoreContext";
 
 interface TopHeaderProps {
   onOpenMobileSidebar?: () => void;
 }
 
 export default function TopHeader({ onOpenMobileSidebar }: TopHeaderProps) {
+  const pathname = usePathname();
   const {
     selectedStore,
     setSelectedStore,
+    storeOptions,
     setIsCmdKOpen,
     setIsUploadOpen,
     setIsAlertConfigOpen,
@@ -30,6 +33,7 @@ export default function TopHeader({ onOpenMobileSidebar }: TopHeaderProps) {
   } = useStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const canFilterStores = pathname === "/inventory" || pathname === "/anomalies";
 
   return (
     <header data-html2canvas-ignore="true" className="sticky top-0 z-[80] h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between transition-all">
@@ -63,46 +67,55 @@ export default function TopHeader({ onOpenMobileSidebar }: TopHeaderProps) {
 
         {/* Store Scope Dropdown */}
         <div className="relative">
-          <button
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 hover:border-slate-300 transition-all"
-          >
-            <Store className="w-4 h-4 text-indigo-600" />
-            <span className="max-w-[140px] sm:max-w-[220px] truncate">{selectedStore.name}</span>
-            <ChevronDown className="w-4 h-4 text-slate-400" />
-          </button>
-
-          {isDropdownOpen && (
-            <div
-              className="absolute left-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-sm py-2 z-50 animate-slide-down"
-              onMouseLeave={() => setIsDropdownOpen(false)}
-            >
-              <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-slate-400 font-mono">
-                Select Store Scope
-              </div>
-              {STORE_OPTIONS.map((store) => (
-                <button
-                  key={store.id}
-                  onClick={() => {
-                    setSelectedStore(store);
-                    setIsDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
-                    selectedStore.id === store.id
-                      ? "bg-indigo-50 text-indigo-700 font-semibold border-l-2 border-indigo-600"
-                      : "text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <div>
-                    <div>{store.name}</div>
-                    <div className="text-xs text-slate-500 font-mono">{store.location}</div>
-                  </div>
-                  <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-lg">
-                    {store.type}
-                  </span>
-                </button>
-              ))}
+          {!canFilterStores ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
+              <Store className="w-4 h-4 text-slate-500" />
+              <span>All Stores</span>
             </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 hover:border-slate-300 transition-all"
+              >
+                <Store className="w-4 h-4 text-indigo-600" />
+                <span className="max-w-[140px] sm:max-w-[220px] truncate">{selectedStore.name}</span>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {isDropdownOpen && (
+                <div
+                  className="absolute left-0 mt-2 w-72 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-sm py-2 z-50 animate-slide-down"
+                  onMouseLeave={() => setIsDropdownOpen(false)}
+                >
+                  <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-slate-400 font-mono sticky top-0 bg-white">
+                    Select Store Scope
+                  </div>
+                  {storeOptions.map((store) => (
+                    <button
+                      key={store.id}
+                      onClick={() => {
+                        setSelectedStore(store);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
+                        selectedStore.id === store.id
+                          ? "bg-indigo-50 text-indigo-700 font-semibold border-l-2 border-indigo-600"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div>
+                        <div>{store.name}</div>
+                        <div className="text-xs text-slate-500 font-mono">{store.location}</div>
+                      </div>
+                      <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-lg">
+                        {store.type}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

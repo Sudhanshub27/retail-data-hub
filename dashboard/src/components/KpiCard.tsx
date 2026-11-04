@@ -1,6 +1,7 @@
 import React from "react";
 import { TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { THEME_COLORS } from "@/lib/theme";
 
 interface KpiCardProps {
   title: string;
@@ -82,7 +83,7 @@ export default function KpiCard({
               <svg className="w-full h-full overflow-visible" viewBox="0 0 60 20">
                 <polyline
                   fill="none"
-                  stroke={isDown ? "#e11d48" : "#059669"}
+                  stroke={isDown ? THEME_COLORS.rose : THEME_COLORS.emerald}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"

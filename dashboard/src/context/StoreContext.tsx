@@ -1,27 +1,31 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/components/Toast";
+import { API_BASE } from "@/config";
 
 export interface StoreOption {
   id: string;
   name: string;
-  type: string;
-  location: string;
-  multiplier: number; // multiplier to adjust dataset numbers based on scope
+  city?: string;
+  type?: string;
+  location?: string;
 }
 
-export const STORE_OPTIONS: StoreOption[] = [
-  { id: "all", name: "All Omnichannel Stores (142 Locations)", type: "Omnichannel", location: "Global Network", multiplier: 1.0 },
-  { id: "ecommerce", name: "E-Commerce Global Store", type: "Digital Channel", location: "Cloud / Web & App", multiplier: 0.58 },
-  { id: "nyc_broadway", name: "Flagship Store - NYC Broadway", type: "Physical Retail", location: "New York, NY", multiplier: 0.18 },
-  { id: "chicago_downtown", name: "Store #104 - Chicago Michigan Ave", type: "Physical Retail", location: "Chicago, IL", multiplier: 0.14 },
-  { id: "la_sunset", name: "Store #208 - Los Angeles Sunset", type: "Physical Retail", location: "Los Angeles, CA", multiplier: 0.10 },
-];
+export const DEFAULT_STORE: StoreOption = {
+  id: "all",
+  name: "All Stores",
+  city: "All",
+  type: "Omnichannel",
+  location: "Pan-India Network",
+};
+
+export const STORE_OPTIONS: StoreOption[] = [DEFAULT_STORE];
 
 interface StoreContextType {
   selectedStore: StoreOption;
   setSelectedStore: (store: StoreOption) => void;
+  storeOptions: StoreOption[];
   isCmdKOpen: boolean;
   setIsCmdKOpen: (open: boolean) => void;
   isUploadOpen: boolean;
@@ -36,16 +40,35 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
-  const [selectedStore, setSelectedStore] = useState<StoreOption>(STORE_OPTIONS[0]);
+  const [storeOptions, setStoreOptions] = useState<StoreOption[]>([DEFAULT_STORE]);
+  const [selectedStore, setSelectedStore] = useState<StoreOption>(DEFAULT_STORE);
   const [isCmdKOpen, setIsCmdKOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isAlertConfigOpen, setIsAlertConfigOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  useEffect(() => {
+    fetch(`${API_BASE}/api/stores`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: StoreOption[] = data.map((s) => ({
+            id: s.id,
+            name: s.id === "all" ? "All Stores" : `${s.city} (${s.id})`,
+            city: s.city,
+            type: s.id === "all" ? "Omnichannel" : `${s.region || "Retail"} Store`,
+            location: s.id === "all" ? "Pan-India Network" : `${s.city}, ${s.state || "India"}`,
+          }));
+          setStoreOptions(mapped);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const exportPdf = async (customTitle?: string) => {
     if (isExportingPdf) return;
     setIsExportingPdf(true);
-    showToast("Preparing multi-page PDF report...", "info");
+    showToast("Preparing PDF report...", "info");
 
     const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
     const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
@@ -60,9 +83,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       styleTag = document.createElement("style");
       styleTag.id = "rdh-pdf-temp-export-style";
       styleTag.innerHTML = `
-        /* Hide navigation chrome and transient overlays */
-        header, aside, [data-html2canvas-ignore="true"] {
+        /* Hide navigation chrome and transient overlays without hiding html2canvas clone iframe */
+        header, aside, [data-html2canvas-ignore="true"]:not(iframe) {
           display: none !important;
+        }
+        iframe.html2canvas-container {
+          display: block !important;
         }
         /* Reset margins and lock fixed width for stable rendering */
         #dashboard-pdf-area {
@@ -183,6 +209,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         currentTop = cutPoint;
       }
 
+      if (slices.length === 0 && domHeight > 0) {
+        slices.push({ top: 0, bottom: domHeight });
+      }
+
       // Initialize A4 portrait document
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -190,7 +220,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         format: "a4",
       });
 
-      const totalPages = slices.length;
+      const totalPages = Math.max(1, slices.length);
       const dateStr = new Date().toISOString().split("T")[0];
 
       // Draw each page slice onto PDF
@@ -199,7 +229,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           pdf.addPage("a4", "portrait");
         }
 
-        const slice = slices[i];
+        const slice = slices[i] || { top: 0, bottom: domHeight };
         const sliceDomHeight = slice.bottom - slice.top;
         const sourceY = Math.round(slice.top * canvasScale);
         const sourceH = Math.min(
@@ -323,6 +353,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       value={{
         selectedStore,
         setSelectedStore,
+        storeOptions,
         isCmdKOpen,
         setIsCmdKOpen,
         isUploadOpen,

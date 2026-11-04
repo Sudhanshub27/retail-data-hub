@@ -20,7 +20,7 @@ if [ ! -d ".venv" ]; then
 else
     echo "   [OK] .venv already exists"
 fi
-source .venv/bin/activate
+[ -f .venv/bin/activate ] && source .venv/bin/activate || true
 echo "   [OK] Activated .venv"
 echo ""
 

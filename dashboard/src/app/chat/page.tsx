@@ -11,8 +11,6 @@ import {
   Copy,
   CheckCircle2,
   Loader2,
-  Zap,
-  Database,
   ChevronDown,
   AlertCircle,
   RefreshCw,
@@ -20,8 +18,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PageHeader from "@/components/PageHeader";
-import KpiCard from "@/components/KpiCard";
-import ChartCard from "@/components/ChartCard";
 import ChartTooltip from "@/components/ChartTooltip";
 import {
   BarChart,
@@ -35,6 +31,7 @@ import {
 import { useStore } from "@/context/StoreContext";
 import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
 import { API_BASE } from "@/config";
+import { useApi } from "@/hooks/useApi";
 
 interface TableData {
   headers: string[];
@@ -59,7 +56,13 @@ interface ChatMessage {
   failedQuery?: string;
 }
 
-const INITIAL_MESSAGES: ChatMessage[] = [
+interface ChatHealthResponse {
+  key_configured: boolean;
+  model: string;
+  data_loaded: boolean;
+}
+
+const initialMessages: ChatMessage[] = [
   {
     id: "welcome-1",
     sender: "ai",
@@ -68,7 +71,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   },
 ];
 
-const SUGGESTED_PROMPTS = [
+const suggestedPrompts = [
   "Revenue by city across all sales channels",
   "Top 5 best-selling products by revenue",
   "Monthly sales and revenue trajectory over time",
@@ -77,7 +80,8 @@ const SUGGESTED_PROMPTS = [
 
 export default function ChatPage() {
   const { selectedStore } = useStore();
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const { data: health, loading: healthLoading } = useApi<ChatHealthResponse>("/api/chat/health");
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [inputPrompt, setInputPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -199,309 +203,286 @@ export default function ChatPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* 1. PageHeader */}
-      <PageHeader
-        title="Retail AI Assistant & Data Copilot"
-        subtitle={`Natural language question answering with automated DuckDB SQL generation and verified Gold layer data for ${selectedStore.name}`}
-      />
+  const isReady = Boolean(health?.key_configured && health?.data_loaded);
 
-      {/* 2. Row of KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="AI Assistant Model"
-          value="Gemini 2.5 Flash"
-          change="Production"
-          trend="up"
-          icon={Brain}
-          subtitle="Google GenAI SDK with multi-turn reasoning"
-        />
-        <KpiCard
-          title="Query Engine"
-          value="DuckDB OLAP"
-          change="Sub-second"
-          trend="up"
-          icon={Zap}
-          subtitle="Direct read-only execution on Gold Parquet"
-        />
-        <KpiCard
-          title="Query Modes"
-          value="Text to SQL"
-          change="Read-Only"
-          trend="neutral"
-          icon={Terminal}
-          subtitle="Converts plain questions to verified star-schema SQL"
-        />
-        <KpiCard
-          title="Active Store Scope"
-          value={selectedStore.name}
-          change="Scope Synced"
-          trend="neutral"
-          icon={Database}
-          subtitle="Direct alignment with current omnichannel selection"
+  return (
+    <div className="flex flex-col h-[calc(100vh-6.5rem)] sm:h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-8.5rem)]">
+      {/* 1. Header with Status Line */}
+      <div className="flex-shrink-0">
+        <PageHeader
+          title="Retail AI Assistant & Data Copilot"
+          subtitle={`Natural language question answering across enterprise sales, inventory, logistics, and customers for ${selectedStore.name}`}
+          action={
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium shadow-sm">
+              {healthLoading ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-pulse" />
+                  <span className="text-slate-500">Checking assistant health...</span>
+                </>
+              ) : isReady ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-mono text-slate-700">{health?.model}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-emerald-700 font-semibold">Data Ready</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  <span className="text-rose-700 font-medium">
+                    {!health?.key_configured
+                      ? "No Gemini API Key"
+                      : !health?.data_loaded
+                      ? "Gold Data Not Loaded"
+                      : "Assistant Offline"}
+                  </span>
+                </>
+              )}
+            </div>
+          }
         />
       </div>
 
-      {/* 3. 12-column grid */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left Column: Quick Prompts & Suggestions */}
-        <div className="col-span-12 lg:col-span-4 space-y-4">
-          <ChartCard
-            title="Suggested Business Prompts"
-            subtitle="Click any prompt to instantly query the data warehouse"
-          >
-            <div className="space-y-2 my-1">
-              {SUGGESTED_PROMPTS.map((prompt, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(prompt)}
-                  disabled={isLoading}
-                  className="w-full text-left p-3 bg-slate-50 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 rounded-lg text-xs font-medium text-slate-700 hover:text-indigo-900 transition-colors flex items-center justify-between group disabled:opacity-50"
-                >
-                  <span className="leading-snug">{prompt}</span>
-                  <Sparkles className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors flex-shrink-0 ml-2" />
-                </button>
-              ))}
-            </div>
-          </ChartCard>
-
-          <ChartCard
-            title="Copilot Capabilities"
-            subtitle="What questions you can ask the assistant"
-          >
-            <div className="space-y-2.5 text-xs text-slate-600">
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="font-semibold text-slate-800">Sales & Revenue:</span> Identify top performers, city rankings, channel mixes, and margin trends.
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="font-semibold text-slate-800">Inventory & Stock:</span> Check warehouse levels, stockout risks, and replenishment schedules.
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="font-semibold text-slate-800">Customer Intelligence:</span> Review retention cohorts, RFM customer segments, and at-risk accounts.
-              </div>
-            </div>
-          </ChartCard>
-        </div>
-
-        {/* Right Column: Interactive Chat Canvas */}
-        <div className="col-span-12 lg:col-span-8">
-          <ChartCard
-            title="Conversation & Query Visualizer"
-            subtitle="Real-time assistant responses with generated SQL statements, data tables, and charts"
-          >
-            {/* Chat Messages Log */}
-            <div className="space-y-4 max-h-[550px] overflow-y-auto p-4 bg-slate-50 border border-slate-200 rounded-lg mb-4">
-              {messages.map((msg) => (
+      {/* 2. Chat Canvas filling viewport */}
+      <div className="flex-1 min-h-0 flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        {/* Scrollable Messages Log */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
+            >
+              <div
+                className={`p-4 rounded-xl max-w-3xl space-y-3 text-xs ${
+                  msg.sender === "user"
+                    ? "bg-indigo-600 text-white rounded-br-none shadow-sm"
+                    : msg.isError
+                    ? "bg-rose-50 border border-rose-200 text-rose-950 rounded-bl-none shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-900 rounded-bl-none shadow-sm"
+                }`}
+              >
+                {/* Message Header */}
                 <div
-                  key={msg.id}
-                  className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
+                  className={`flex items-center justify-between gap-4 text-xs font-medium ${
+                    msg.sender === "user" ? "text-indigo-200" : "text-slate-400"
+                  }`}
                 >
+                  <span className="flex items-center gap-1.5 font-semibold">
+                    {msg.sender === "ai" ? (
+                      msg.isError ? (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Error
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-3.5 h-3.5 text-indigo-600" /> AI Assistant
+                        </>
+                      )
+                    ) : (
+                      "Your Question"
+                    )}
+                  </span>
+                  <span>{msg.timestamp}</span>
+                </div>
+
+                {/* Message Text with Markdown */}
+                {msg.isError ? (
+                  <div className="space-y-2">
+                    <p className="leading-relaxed text-xs font-medium text-rose-800">{msg.text}</p>
+                    {msg.failedQuery && (
+                      <button
+                        onClick={() => handleSend(msg.failedQuery)}
+                        disabled={isLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-100/60 border border-rose-300 text-rose-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Retry</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
                   <div
-                    className={`p-4 rounded-lg max-w-2xl space-y-3 text-xs ${
+                    className={`prose prose-sm max-w-none text-xs leading-relaxed font-normal ${
                       msg.sender === "user"
-                        ? "bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-br-none"
-                        : msg.isError
-                        ? "bg-rose-50 border border-rose-200 text-rose-950 rounded-bl-none shadow-sm"
-                        : "bg-white border border-slate-200 text-slate-900 rounded-bl-none shadow-sm"
+                        ? "text-white prose-invert"
+                        : "text-slate-800 prose-slate"
                     }`}
                   >
-                    {/* Message Header */}
-                    <div className="flex items-center justify-between gap-4 text-xs text-slate-400 font-medium">
-                      <span className="flex items-center gap-1.5 font-semibold">
-                        {msg.sender === "ai" ? (
-                          msg.isError ? (
-                            <>
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Error
-                            </>
-                          ) : (
-                            <>
-                              <Brain className="w-3.5 h-3.5 text-indigo-600" /> AI Assistant
-                            </>
-                          )
-                        ) : (
-                          "Your Question"
-                        )}
-                      </span>
-                      <span>{msg.timestamp}</span>
-                    </div>
-
-                    {/* Message Text with Markdown */}
-                    {msg.isError ? (
-                      <div className="space-y-2">
-                        <p className="leading-relaxed text-xs font-medium text-rose-800">{msg.text}</p>
-                        {msg.failedQuery && (
-                          <button
-                            onClick={() => handleSend(msg.failedQuery)}
-                            disabled={isLoading}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-100/60 border border-rose-300 text-rose-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            <span>Retry</span>
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="prose prose-sm prose-slate max-w-none text-xs leading-relaxed text-slate-800 font-normal">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {msg.text}
-                        </ReactMarkdown>
-                      </div>
-                    )}
-
-                    {/* Collapsible SQL Query Box */}
-                    {msg.sqlQuery && (
-                      <details open className="group/sql bg-slate-100 border border-slate-200 rounded-lg overflow-hidden text-xs">
-                        <summary className="flex items-center justify-between p-2.5 cursor-pointer select-none bg-slate-50 hover:bg-slate-100 transition-colors">
-                          <span className="flex items-center gap-1.5 text-indigo-700 font-medium font-mono text-xs">
-                            <Terminal className="w-3.5 h-3.5 text-indigo-600" /> Auto-Generated DuckDB SQL
-                          </span>
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => copySql(msg.sqlQuery!, msg.id)}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-600 hover:text-slate-900 hover:bg-white transition-colors"
-                              title="Copy SQL"
-                            >
-                              {copiedId === msg.id ? (
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                              <span>{copiedId === msg.id ? "Copied" : "Copy"}</span>
-                            </button>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open/sql:rotate-180 transition-transform" />
-                          </div>
-                        </summary>
-                        <div className="p-3 border-t border-slate-200 bg-slate-900 text-slate-100 overflow-x-auto font-mono text-xs">
-                          <pre className="leading-relaxed whitespace-pre-wrap">{msg.sqlQuery}</pre>
-                        </div>
-                      </details>
-                    )}
-
-                    {/* Tabular Data View (only rendered when data exists) */}
-                    {msg.tableData &&
-                      msg.tableData.headers &&
-                      msg.tableData.headers.length > 0 &&
-                      msg.tableData.rows &&
-                      msg.tableData.rows.length > 0 && (
-                        <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
-                          <div className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
-                            <TableIcon className="w-3.5 h-3.5" /> Result Table ({msg.tableData.rows.length} rows)
-                          </div>
-                          <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-56 overflow-y-auto">
-                            <table className="w-full text-left text-xs">
-                              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-medium sticky top-0">
-                                <tr>
-                                  {msg.tableData.headers.map((h, i) => (
-                                    <th key={i} className="p-2.5 font-medium whitespace-nowrap bg-slate-50">
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 font-sans">
-                                {msg.tableData.rows.map((row, rowIndex) => (
-                                  <tr key={rowIndex} className="hover:bg-slate-50 transition-colors">
-                                    {row.map((cell, cellIndex) => (
-                                      <td
-                                        key={cellIndex}
-                                        className="p-2.5 text-slate-800 font-medium whitespace-nowrap"
-                                      >
-                                        {cell !== null && cell !== undefined ? String(cell) : "-"}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Recharts Visualizer (only rendered when chartData exists) */}
-                    {msg.chartData && msg.chartData.length > 0 && (() => {
-                      const chartItems: ChartItem[] = msg.chartData.map((d: any) => ({
-                        name: String(d.name ?? "Item"),
-                        value:
-                          typeof d.value === "number"
-                            ? d.value
-                            : parseFloat(String(d.value).replace(/[^0-9.-]/g, "")) || 0,
-                      }));
-
-                      return (
-                        <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
-                          <div className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
-                            <BarChart2 className="w-3.5 h-3.5" /> Chart Visualization
-                          </div>
-                          <div className="h-48 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={chartItems} margin={{ top: 10, right: 10, left: 0, bottom: 25 }}>
-                                <CartesianGrid {...CHART_GRID_PROPS} />
-                                <XAxis
-                                  dataKey="name"
-                                  {...CHART_AXIS_PROPS}
-                                  interval={0}
-                                  angle={-20}
-                                  textAnchor="end"
-                                  height={35}
-                                />
-                                <YAxis {...CHART_AXIS_PROPS} />
-                                <Tooltip content={<ChartTooltip />} />
-                                <Bar
-                                  dataKey="value"
-                                  name="Value"
-                                  fill={CHART_COLORS[0]}
-                                  radius={[4, 4, 0, 0]}
-                                />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.text}
+                    </ReactMarkdown>
                   </div>
-                </div>
-              ))}
-
-              {isLoading && (
-                <div className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg text-xs font-medium text-indigo-600 animate-pulse">
-                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600 flex-shrink-0" />
-                  <span>Querying DuckDB Gold layer and generating verified response...</span>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Chat Input Bar */}
-            <div className="flex items-end gap-2 p-2 bg-white border border-slate-200 rounded-lg">
-              <textarea
-                value={inputPrompt}
-                disabled={isLoading}
-                rows={2}
-                onChange={(e) => setInputPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Ask Retail Data Hub AI anything about sales, revenue, inventory, or customers (Enter to send, Shift+Enter for newline)..."
-                className="flex-1 bg-transparent px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-medium resize-none disabled:opacity-50"
-              />
-              <button
-                onClick={() => handleSend()}
-                disabled={isLoading || !inputPrompt.trim()}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors flex-shrink-0 mb-0.5"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
                 )}
-                <span>Send</span>
-              </button>
+
+                {/* Collapsible SQL Query Box */}
+                {msg.sqlQuery && (
+                  <details open className="group/sql bg-slate-100 border border-slate-200 rounded-lg overflow-hidden text-xs">
+                    <summary className="flex items-center justify-between p-2.5 cursor-pointer select-none bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <span className="flex items-center gap-1.5 text-indigo-700 font-medium font-mono text-xs">
+                        <Terminal className="w-3.5 h-3.5 text-indigo-600" /> Auto-Generated DuckDB SQL
+                      </span>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => copySql(msg.sqlQuery!, msg.id)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-600 hover:text-slate-900 hover:bg-white transition-colors"
+                          title="Copy SQL"
+                        >
+                          {copiedId === msg.id ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{copiedId === msg.id ? "Copied" : "Copy"}</span>
+                        </button>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open/sql:rotate-180 transition-transform" />
+                      </div>
+                    </summary>
+                    <div className="p-3 border-t border-slate-200 bg-slate-900 text-slate-100 overflow-x-auto font-mono text-xs">
+                      <pre className="leading-relaxed whitespace-pre-wrap">{msg.sqlQuery}</pre>
+                    </div>
+                  </details>
+                )}
+
+                {/* Tabular Data View (only rendered when data exists) */}
+                {msg.tableData &&
+                  msg.tableData.headers &&
+                  msg.tableData.headers.length > 0 &&
+                  msg.tableData.rows &&
+                  msg.tableData.rows.length > 0 && (
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
+                        <TableIcon className="w-3.5 h-3.5" /> Result Table ({msg.tableData.rows.length} rows)
+                      </div>
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-56 overflow-y-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-medium sticky top-0">
+                            <tr>
+                              {msg.tableData.headers.map((h, i) => (
+                                <th key={i} className="p-2.5 font-medium whitespace-nowrap bg-slate-50">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-sans">
+                            {msg.tableData.rows.map((row, rowIndex) => (
+                              <tr key={rowIndex} className="hover:bg-slate-50 transition-colors">
+                                {row.map((cell, cellIndex) => (
+                                  <td
+                                    key={cellIndex}
+                                    className="p-2.5 text-slate-800 font-medium whitespace-nowrap"
+                                  >
+                                    {cell !== null && cell !== undefined ? String(cell) : "-"}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Recharts Visualizer (only rendered when chartData exists) */}
+                {msg.chartData && msg.chartData.length > 0 && (() => {
+                  const chartItems: ChartItem[] = msg.chartData.map((d: any) => ({
+                    name: String(d.name ?? "Item"),
+                    value:
+                      typeof d.value === "number"
+                        ? d.value
+                        : parseFloat(String(d.value).replace(/[^0-9.-]/g, "")) || 0,
+                  }));
+
+                  return (
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
+                        <BarChart2 className="w-3.5 h-3.5" /> Chart Visualization
+                      </div>
+                      <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartItems} margin={{ top: 10, right: 10, left: 0, bottom: 25 }}>
+                            <CartesianGrid {...CHART_GRID_PROPS} />
+                            <XAxis
+                              dataKey="name"
+                              {...CHART_AXIS_PROPS}
+                              interval={0}
+                              angle={-20}
+                              textAnchor="end"
+                              height={35}
+                            />
+                            <YAxis {...CHART_AXIS_PROPS} />
+                            <Tooltip content={<ChartTooltip />} />
+                            <Bar
+                              dataKey="value"
+                              name="Value"
+                              fill={CHART_COLORS[0]}
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          </ChartCard>
+          ))}
+
+          {isLoading && (
+            <div className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg text-xs font-medium text-indigo-600 animate-pulse w-fit">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-600 flex-shrink-0" />
+              <span>Querying DuckDB Gold layer and generating verified response...</span>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Fixed Input at Bottom with Prompt Chips */}
+        <div className="flex-shrink-0 p-3 sm:p-4 bg-white border-t border-slate-200 space-y-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 flex-shrink-0">
+              <Sparkles className="w-3 h-3 text-indigo-500" /> Prompts:
+            </span>
+            {suggestedPrompts.map((prompt, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(prompt)}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-xs font-medium text-slate-700 hover:text-indigo-900 whitespace-nowrap transition-colors disabled:opacity-50 flex-shrink-0"
+              >
+                <span>{prompt}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-end gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+            <textarea
+              value={inputPrompt}
+              disabled={isLoading}
+              rows={2}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Ask Retail Data Hub AI anything about sales, revenue, inventory, or customers (Enter to send, Shift+Enter for newline)..."
+              className="flex-1 bg-transparent px-2 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-medium resize-none disabled:opacity-50"
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={isLoading || !inputPrompt.trim()}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors flex-shrink-0 mb-0.5"
+            >
+              {isLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              <span>Send</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code
 COPY . .
 
-# Pre-generate datasets and run Medallion pipeline to build analytics Gold layer
+# Pre-generate datasets and run Medallion pipeline to build analytics Gold layer and analytics reports
 RUN bash scripts/generation.sh && \
     python3 src/ingestion/ingest_batch.py && \
     python3 src/ingestion/ingest_realtime.py && \
@@ -25,7 +25,11 @@ RUN bash scripts/generation.sh && \
     python3 src/analytics/commercial_kpis.py && \
     python3 src/analytics/operations_kpis.py && \
     python3 src/analytics/customer_kpis.py && \
-    python3 src/analytics/executive_summary.py
+    python3 src/analytics/executive_summary.py && \
+    python3 src/analytics/market_basket.py && \
+    python3 src/analytics/anomaly_detection.py && \
+    python3 src/analytics/fraud_detection.py && \
+    python3 src/ml/demand_forecast.py
 
 EXPOSE 8000
 

@@ -25,3 +25,11 @@ export const CHART_GRID_PROPS = {
   strokeDasharray: "3 3",
   vertical: false,
 } as const;
+
+export const LEGEND_PROPS = {
+  verticalAlign: "top" as const,
+  align: "right" as const,
+  height: 36,
+  iconType: "circle" as const,
+  wrapperStyle: { fontSize: "12px", color: THEME_COLORS.slate },
+} as const;

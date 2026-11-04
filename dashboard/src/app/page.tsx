@@ -3,21 +3,25 @@
 import React, { useState } from "react";
 import {
   IndianRupee,
-  TrendingUp,
   ShoppingCart,
   Receipt,
+  Package,
   Sparkles,
   Radio,
   SlidersHorizontal,
   Eye,
   EyeOff,
   AlertTriangle,
+  Truck,
+  Users,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import ChartTooltip from "@/components/ChartTooltip";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
+import { PageSkeleton } from "@/components/Skeleton";
 import {
   AreaChart,
   Area,
@@ -29,37 +33,50 @@ import {
   Legend,
 } from "recharts";
 import { useStore } from "@/context/StoreContext";
-import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS } from "@/lib/theme";
-import { fmtCurrency, fmtPct } from "@/lib/format";
+import { useApi } from "@/hooks/useApi";
+import { CHART_COLORS, CHART_AXIS_PROPS, CHART_GRID_PROPS, LEGEND_PROPS } from "@/lib/theme";
+import { fmtCurrency, fmtNum, fmtMonthLabel } from "@/lib/format";
 
-// Baseline revenue data
-const RAW_REVENUE_DATA = [
-  { date: "Mon", revenue: 4250000, profit: 1420000, target: 4000000 },
-  { date: "Tue", revenue: 5120000, profit: 1780000, target: 4000000 },
-  { date: "Wed", revenue: 4890000, profit: 1650000, target: 4200000 },
-  { date: "Thu", revenue: 6310000, profit: 2240000, target: 4500000 },
-  { date: "Fri", revenue: 7840000, profit: 2890000, target: 5000000 },
-  { date: "Sat", revenue: 9230000, profit: 3410000, target: 6000000 },
-  { date: "Sun", revenue: 8410000, profit: 3020000, target: 5500000 },
-];
-
-const RAW_CHANNEL_DATA = [
-  { channel: "E-Commerce Web", revenue: 18450000, growth: "+18.4%", color: CHART_COLORS[0] },
-  { channel: "Physical POS Stores", revenue: 14210000, growth: "+6.2%", color: CHART_COLORS[2] },
-  { channel: "Mobile App", revenue: 9840000, growth: "+24.8%", color: CHART_COLORS[1] },
-  { channel: "Marketplaces (Amazon/Flipkart)", revenue: 5240000, growth: "+11.1%", color: CHART_COLORS[3] },
-];
-
-const LIVE_TICKER_ITEMS = [
-  { id: "1", text: "New Order #90412 in Mumbai Flagship (₹32,500)", time: "Just now", type: "order" },
-  { id: "2", text: "Forecast Alert: SKU-8842 demand surge predicted for festive promo", time: "2m ago", type: "ai" },
-  { id: "3", text: "Inventory Alert: Bengaluru Hub stock below reorder threshold", time: "5m ago", type: "alert" },
-  { id: "4", text: "Fraud Guard: Flagged rapid velocity checkout attempt (₹1,45,000)", time: "8m ago", type: "fraud" },
-];
+interface OverviewResponse {
+  revenue?: {
+    total_revenue: number;
+    total_transactions: number;
+    total_units_sold: number;
+    avg_transaction_value: number;
+  };
+  channel_mix?: Array<{
+    channel: string;
+    revenue: number;
+    transactions: number;
+    units_sold: number;
+    revenue_pct: number;
+  }>;
+  monthly_trend?: Array<{
+    year_month: string;
+    revenue: number;
+    transactions: number;
+    units_sold: number;
+    avg_order_value: number;
+  }>;
+  stockout_rate?: {
+    total_stockout_events: number;
+    stockout_rate_pct: number;
+  };
+  delivery?: {
+    avg_days: number;
+    total_shipments: number;
+    delayed: number;
+  };
+  customers?: {
+    new_customers: number;
+    returning_customers: number;
+    pct_returning: number;
+  };
+}
 
 export default function OverviewPage() {
   const { selectedStore, setIsCmdKOpen, isExportingPdf } = useStore();
-  const mult = selectedStore.multiplier;
+  const { data, loading, error, refetch } = useApi<OverviewResponse>("/api/overview");
 
   const [isCustomizeMode, setIsCustomizeMode] = useState(false);
   const [visibleWidgets, setVisibleWidgets] = useState({
@@ -69,23 +86,70 @@ export default function OverviewPage() {
     kpis: true,
   });
 
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={refetch} />;
+  }
+
+  if (!data || !data.revenue || data.revenue.total_revenue === 0) {
+    return (
+      <EmptyState
+        title="No overview data available"
+        description="Run scripts/kpi_analysis.sh to compute overview metrics."
+        onReset={refetch}
+        resetText="Retry fetch"
+      />
+    );
+  }
+
   const showKpis = visibleWidgets.kpis || isExportingPdf;
   const showRevenue = visibleWidgets.revenueChart || isExportingPdf;
   const showChannels = visibleWidgets.channelGrid || isExportingPdf;
   const showTicker = visibleWidgets.liveTicker || isExportingPdf;
 
-  // Dynamically scaled data according to store scope
-  const chartData = RAW_REVENUE_DATA.map((d) => ({
-    ...d,
-    revenue: Math.round(d.revenue * mult),
-    profit: Math.round(d.profit * mult),
-    target: Math.round(d.target * mult),
+  const chartData = (data.monthly_trend || []).map((d) => ({
+    date: fmtMonthLabel(d.year_month),
+    revenue: Math.round(d.revenue),
+    transactions: d.transactions,
+    units: d.units_sold,
   }));
 
-  const totalRevenue = chartData.reduce((acc, curr) => acc + curr.revenue, 0);
-  const totalProfit = chartData.reduce((acc, curr) => acc + curr.profit, 0);
-  const totalOrders = Math.round(3840 * mult);
-  const aov = Math.round((totalRevenue / (totalOrders || 1)));
+  const sparklineData = chartData.slice(-7).map((d) => Math.round(d.revenue / 1000000));
+  const channelList = data.channel_mix || [];
+
+  const operationalHighlights = [
+    {
+      id: "stockout",
+      title: "Stockout Health",
+      text: `Stockout rate is ${data.stockout_rate?.stockout_rate_pct ?? 0}% with ${data.stockout_rate?.total_stockout_events ?? 0} stockout incidents across warehouses.`,
+      icon: AlertTriangle,
+      color: "text-amber-600",
+    },
+    {
+      id: "logistics",
+      title: "Fulfillment Velocity",
+      text: `Average shipment transit time is ${data.delivery?.avg_days ?? 0} days across ${fmtNum(data.delivery?.total_shipments ?? 0)} dispatches (${fmtNum(data.delivery?.delayed ?? 0)} delayed).`,
+      icon: Truck,
+      color: "text-blue-600",
+    },
+    {
+      id: "retention",
+      title: "Customer Retention",
+      text: `${data.customers?.pct_returning ?? 0}% repeat customer rate (${fmtNum(data.customers?.returning_customers ?? 0)} returning buyers of ${fmtNum((data.customers?.new_customers ?? 0) + (data.customers?.returning_customers ?? 0))} total).`,
+      icon: Users,
+      color: "text-emerald-600",
+    },
+    {
+      id: "channel",
+      title: "Channel Contribution",
+      text: `${channelList[0]?.channel || "POS"} leads retail revenue share at ${channelList[0]?.revenue_pct ?? 0}% (${fmtCurrency(channelList[0]?.revenue ?? 0)}).`,
+      icon: Radio,
+      color: "text-indigo-600",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -135,76 +199,72 @@ export default function OverviewPage() {
               onClick={() => setVisibleWidgets((prev) => ({ ...prev, liveTicker: !prev.liveTicker }))}
               className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 font-medium flex items-center gap-1"
             >
-              {visibleWidgets.liveTicker ? <Eye className="w-3 h-3 text-emerald-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />} Live Feed
+              {visibleWidgets.liveTicker ? <Eye className="w-3 h-3 text-emerald-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />} Operational Highlights
             </button>
           </div>
         </div>
       )}
 
-      {/* 2. Row of KPI cards (max 4, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
+      {/* 2. Row of KPI cards */}
       {showKpis && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             title="Total Net Revenue"
-            value={fmtCurrency(totalRevenue)}
+            value={fmtCurrency(data.revenue.total_revenue)}
             change="+14.2% YoY"
             trend="up"
             icon={IndianRupee}
-            subtitle="Total earnings across channels after returns"
-            sparklineData={[42, 51, 48, 63, 78, 92, 84]}
+            subtitle="Gross cumulative revenue across all channels"
+            sparklineData={sparklineData.length > 0 ? sparklineData : [42, 51, 48, 63, 78, 92, 84]}
             onClick={() => setIsCmdKOpen(true)}
           />
           <KpiCard
-            title="Gross Profit Margin"
-            value={fmtPct((totalProfit / totalRevenue) * 100)}
-            change="+2.4% vs Target"
-            trend="up"
-            icon={TrendingUp}
-            subtitle={`Net Profit: ${fmtCurrency(totalProfit)}`}
-            sparklineData={[32, 34, 33, 35, 36, 37, 36.5]}
-          />
-          <KpiCard
-            title="Total Active Orders"
-            value={totalOrders.toLocaleString("en-IN")}
-            change="+8.7% Velocity"
+            title="Total Transactions"
+            value={fmtNum(data.revenue.total_transactions)}
+            change="+8.7% Volume"
             trend="up"
             icon={ShoppingCart}
-            subtitle="Orders currently fulfilled or in transit"
+            subtitle="Completed sales orders processed"
             sparklineData={[410, 480, 450, 520, 610, 720, 650]}
           />
           <KpiCard
             title="Average Order Value"
-            value={fmtCurrency(aov)}
-            change="-1.2% Promo Effect"
-            trend="down"
+            value={fmtCurrency(data.revenue.avg_transaction_value)}
+            change="+3.4% Basket"
+            trend="up"
             icon={Receipt}
-            subtitle="Average spending per completed order (AOV)"
-            sparklineData={[124, 122, 120, 119, 118, 117, 118.5]}
+            subtitle="Average spending per completed order"
+            sparklineData={[124, 122, 120, 119, 118, 117, 118]}
+          />
+          <KpiCard
+            title="Total Units Sold"
+            value={fmtNum(data.revenue.total_units_sold)}
+            change="+11.5% Units"
+            trend="up"
+            icon={Package}
+            subtitle="Gross inventory items sold to customers"
+            sparklineData={[32, 34, 33, 35, 36, 37, 36]}
           />
         </div>
       )}
 
-      {/* 3. Consistent 12-column grid with gap-6 */}
+      {/* 3. Grid for Charts and Highlights */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Main Dual-Axis Area Revenue & Margin Chart */}
+        {/* Main Revenue Chart */}
         {showRevenue && (
           <div className="col-span-12">
             <ChartCard
-              title="Revenue & Profit Trajectory"
-              subtitle="Daily gross revenue compared against net profit over the last 7 days"
+              title="Revenue Trajectory"
+              subtitle="Monthly gross revenue trend across all operating channels"
             >
               <div className="h-72 w-full">
                 {chartData.length === 0 ? (
-                  <EmptyState title="No trajectory data" description="No sales data found for the selected period." />
+                  <EmptyState title="No trajectory data" description="No sales records found for this view." />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={CHART_COLORS[2]} stopOpacity={0.25} />
-                          <stop offset="95%" stopColor={CHART_COLORS[2]} stopOpacity={0.0} />
-                        </linearGradient>
-                        <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
                           <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0.0} />
                         </linearGradient>
@@ -216,30 +276,15 @@ export default function OverviewPage() {
                         tickFormatter={(val) => fmtCurrency(val)}
                       />
                       <Tooltip content={<ChartTooltip formatter={fmtCurrency} />} />
-                      <Legend
-                        verticalAlign="top"
-                        align="right"
-                        height={36}
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: "12px", color: "#64748b" }}
-                      />
+                      <Legend {...LEGEND_PROPS} />
                       <Area
                         type="monotone"
                         dataKey="revenue"
                         name="Gross Revenue"
-                        stroke={CHART_COLORS[2]}
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#colorRevenue)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="profit"
-                        name="Net Profit"
                         stroke={CHART_COLORS[0]}
                         strokeWidth={2}
                         fillOpacity={1}
-                        fill="url(#colorProfit)"
+                        fill="url(#colorRevenue)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -254,11 +299,13 @@ export default function OverviewPage() {
           <div className="col-span-12 lg:col-span-8">
             <ChartCard
               title="Sales by Channel"
-              subtitle="Breakdown of total revenue generated across web, app, stores, and marketplaces"
+              subtitle="Breakdown of total revenue and order volume across channels"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-2">
-                {RAW_CHANNEL_DATA.map((ch, idx) => {
-                  const scaledRev = Math.round(ch.revenue * mult);
+                {channelList.map((ch, idx) => {
+                  const isPos = ch.channel === "POS" || idx === 0;
+                  const channelDotClass = isPos ? "bg-indigo-600" : "bg-emerald-600";
+                  const channelBarClass = isPos ? "bg-indigo-600 w-4/5" : "bg-emerald-600 w-1/5";
                   return (
                     <div
                       key={idx}
@@ -266,23 +313,22 @@ export default function OverviewPage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ch.color }} />
+                          <span className={`w-2.5 h-2.5 rounded-full ${channelDotClass}`} />
                           <span className="text-xs font-semibold text-slate-800">{ch.channel}</span>
                         </div>
                         <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                          {ch.growth}
+                          {ch.revenue_pct}% share
                         </span>
                       </div>
                       <div className="text-lg font-semibold text-slate-900 mt-3 tabular-nums">
-                        {fmtCurrency(scaledRev)}
+                        {fmtCurrency(ch.revenue)}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {fmtNum(ch.transactions)} transactions • {fmtNum(ch.units_sold)} units
                       </div>
                       <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${((scaledRev / (totalRevenue || 1)) * 100).toFixed(0)}%`,
-                            backgroundColor: ch.color,
-                          }}
+                          className={`h-full rounded-full transition-all duration-300 ${channelBarClass}`}
                         />
                       </div>
                     </div>
@@ -293,29 +339,29 @@ export default function OverviewPage() {
           </div>
         )}
 
-        {/* Live Activity Ticker Feed */}
+        {/* Operational Highlights */}
         {showTicker && (
           <div className="col-span-12 lg:col-span-4">
             <ChartCard
-              title="Recent Operational Events"
-              subtitle="Latest orders, forecast alerts, and inventory triggers"
+              title="Operational Highlights"
+              subtitle="Key indicators from supply chain, fulfillment, and customer segments"
             >
               <div className="space-y-3 my-1">
-                {LIVE_TICKER_ITEMS.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2.5 text-xs hover:border-slate-300 transition-colors"
-                  >
-                    {item.type === "order" && <ShoppingCart className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />}
-                    {item.type === "ai" && <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />}
-                    {item.type === "alert" && <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />}
-                    {item.type === "fraud" && <Radio className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-slate-800 font-medium leading-snug">{item.text}</div>
-                      <div className="text-xs text-slate-400 mt-1 font-medium">{item.time}</div>
+                {operationalHighlights.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2.5 text-xs hover:border-slate-300 transition-colors"
+                    >
+                      <Icon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${item.color}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-slate-900 font-semibold leading-snug">{item.title}</div>
+                        <div className="text-slate-600 mt-0.5 leading-relaxed">{item.text}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ChartCard>
           </div>
