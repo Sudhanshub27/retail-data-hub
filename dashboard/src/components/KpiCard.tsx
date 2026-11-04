@@ -38,7 +38,6 @@ export default function KpiCard({
 
   return (
     <div
-      data-pdf-block="true"
       className={`p-5 ${
         isClickable ? "slate-card-interactive group" : "slate-card"
       }`}

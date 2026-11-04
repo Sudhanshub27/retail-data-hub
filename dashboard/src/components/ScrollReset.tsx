@@ -10,7 +10,7 @@ export default function ScrollReset() {
     window.scrollTo(0, 0);
     const container =
       document.getElementById("main-scroll-container") ||
-      document.getElementById("dashboard-pdf-area");
+      document.querySelector("main");
     if (container) {
       container.scrollTo(0, 0);
     }

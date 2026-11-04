@@ -111,7 +111,7 @@ export default function LiveFeed() {
   }, [connect]);
 
   return (
-    <div data-pdf-block="true" className="slate-card overflow-hidden">
+    <div className="slate-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200">
         <div className="flex items-center gap-2">

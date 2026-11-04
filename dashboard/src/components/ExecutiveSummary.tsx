@@ -30,7 +30,7 @@ export default function ExecutiveSummary() {
   const isAI = source === "gemini_pro" || source === "gemini_pro_vision";
 
   return (
-    <div data-pdf-block="true" className="slate-card p-5 sm:p-6 animate-slide-up">
+    <div className="slate-card p-5 sm:p-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 flex-shrink-0">

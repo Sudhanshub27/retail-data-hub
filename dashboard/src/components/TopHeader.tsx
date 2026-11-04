@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Search,
   Upload,
-  FileText,
   Bell,
   ChevronDown,
   Menu,
@@ -28,15 +27,13 @@ export default function TopHeader({ onOpenMobileSidebar }: TopHeaderProps) {
     setIsCmdKOpen,
     setIsUploadOpen,
     setIsAlertConfigOpen,
-    exportPdf,
-    isExportingPdf,
   } = useStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const canFilterStores = pathname === "/inventory" || pathname === "/anomalies";
 
   return (
-    <header data-html2canvas-ignore="true" className="sticky top-0 z-[80] h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between transition-all">
+    <header className="sticky top-0 z-[80] h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between transition-all">
       {/* Left: Mobile Menu Trigger + Brand + Store Selector */}
       <div className="flex items-center gap-3 lg:gap-6">
         <button
@@ -151,18 +148,6 @@ export default function TopHeader({ onOpenMobileSidebar }: TopHeaderProps) {
         >
           <Upload className="w-4 h-4" />
           <span className="hidden sm:inline">Data Upload</span>
-        </button>
-
-        {/* Quick Action: Export PDF Report */}
-        <button
-          onClick={() => exportPdf()}
-          disabled={isExportingPdf}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 rounded-lg text-xs font-medium transition-colors"
-        >
-          <FileText className="w-4 h-4 text-slate-600" />
-          <span className="hidden sm:inline">
-            {isExportingPdf ? "Generating..." : "Export PDF"}
-          </span>
         </button>
 
         {/* Notifications Bell (No badge) */}

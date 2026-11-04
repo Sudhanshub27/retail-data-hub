@@ -31,7 +31,7 @@ FORBIDDEN_SQL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"]
 
 
 def _format_cell_value(val: Any) -> Any:
@@ -287,9 +287,10 @@ QUERY RULES:
 3. Reference tables directly: `fact_sales`, `dim_product`, `dim_store`, `dim_customer`, `dim_date` (no database prefix).
 4. Always use appropriate aggregation, GROUP BY, and ORDER BY clauses.
 5. The query MUST include a LIMIT clause (maximum 200).
-6. Return a JSON object matching this schema:
+6. Be direct, crisp, and high-signal. Answer immediately with no filler or preambles (never say 'To answer your question...', 'In this analysis...', or explain how the SQL joins work unless asked). State the exact figures, ranking, or insight in concise Markdown bullet points.
+7. Return a JSON object matching this schema:
 {{
-  "text": "Executive explanation and analytical insights in clean Markdown.",
+  "text": "Direct, crisp answer and key metrics in clean Markdown without fluff.",
   "sqlQuery": "SELECT ... FROM fact_sales ... LIMIT 10;",
   "data_type": "table" | "chart" | "text"
 }}"""
@@ -318,7 +319,7 @@ QUERY RULES:
         )
 
         # 7. Model selection with fallback
-        chosen_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+        chosen_model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
         models_to_try = [chosen_model]
         for m in FALLBACK_MODELS:
             if m not in models_to_try:

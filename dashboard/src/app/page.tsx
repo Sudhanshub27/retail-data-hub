@@ -75,7 +75,7 @@ interface OverviewResponse {
 }
 
 export default function OverviewPage() {
-  const { selectedStore, setIsCmdKOpen, isExportingPdf } = useStore();
+  const { selectedStore, setIsCmdKOpen } = useStore();
   const { data, loading, error, refetch } = useApi<OverviewResponse>("/api/overview");
 
   const [isCustomizeMode, setIsCustomizeMode] = useState(false);
@@ -105,10 +105,10 @@ export default function OverviewPage() {
     );
   }
 
-  const showKpis = visibleWidgets.kpis || isExportingPdf;
-  const showRevenue = visibleWidgets.revenueChart || isExportingPdf;
-  const showChannels = visibleWidgets.channelGrid || isExportingPdf;
-  const showTicker = visibleWidgets.liveTicker || isExportingPdf;
+  const showKpis = visibleWidgets.kpis;
+  const showRevenue = visibleWidgets.revenueChart;
+  const showChannels = visibleWidgets.channelGrid;
+  const showTicker = visibleWidgets.liveTicker;
 
   const chartData = (data.monthly_trend || []).map((d) => ({
     date: fmtMonthLabel(d.year_month),
@@ -174,9 +174,8 @@ export default function OverviewPage() {
       />
 
       {/* Customizable Widget Selector Panel (when active) */}
-      {isCustomizeMode && !isExportingPdf && (
+      {isCustomizeMode && (
         <div
-          data-html2canvas-ignore="true"
           className="p-4 bg-amber-50 border border-amber-200 rounded-lg animate-slide-down flex items-center justify-between text-xs"
         >
           <div className="flex items-center gap-2 text-amber-800 font-semibold">

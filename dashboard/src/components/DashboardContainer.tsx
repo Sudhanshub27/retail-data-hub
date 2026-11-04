@@ -22,7 +22,6 @@ export default function DashboardContainer({ children }: { children: React.React
           {/* Mobile Sidebar Backdrop */}
           {isMobileSidebarOpen && (
             <div
-              data-html2canvas-ignore="true"
               className="fixed inset-0 bg-slate-900/40 z-[90] lg:hidden animate-fade-in"
               onClick={() => setIsMobileSidebarOpen(false)}
             />
@@ -33,7 +32,6 @@ export default function DashboardContainer({ children }: { children: React.React
 
           {/* Main Dashboard Canvas Area */}
           <main
-            id="dashboard-pdf-area"
             className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 transition-all duration-300 min-w-0"
           >
             <ScrollReset />
@@ -44,7 +42,7 @@ export default function DashboardContainer({ children }: { children: React.React
         </div>
 
         {/* Global Modals */}
-        <div data-html2canvas-ignore="true">
+        <div>
           <CmdKModal />
           <UploadModal />
           <AlertConfigModal />

@@ -18,7 +18,7 @@ export default function ChartCard({
   badge,
 }: ChartCardProps) {
   return (
-    <div data-pdf-block="true" className={`slate-card p-5 sm:p-6 ${className}`}>
+    <div className={`slate-card p-5 sm:p-6 ${className}`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">

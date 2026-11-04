@@ -14,7 +14,6 @@ export default function Card({
 }: CardProps) {
   return (
     <div
-      data-pdf-block="true"
       className={`${
         interactive ? "slate-card-interactive" : "slate-card"
       } p-5 sm:p-6 ${className}`}

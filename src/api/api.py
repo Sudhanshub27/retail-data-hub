@@ -95,7 +95,7 @@ def chat(request: ChatRequest):
 def chat_health():
     """Returns AI Chat configuration, current model, and Gold data availability."""
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     data_loaded = chat_engine.is_data_available()
     return {
         "key_configured": bool(api_key),

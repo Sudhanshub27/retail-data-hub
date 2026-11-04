@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Package, Users, AlertTriangle, Shield, ArrowRight, X, Sparkles, Command } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/context/StoreContext";
 
@@ -15,7 +15,7 @@ interface SearchResult {
   badgeColor?: string;
 }
 
-const SEARCH_ITEMS: SearchResult[] = [
+const searchItems: SearchResult[] = [
   { id: "p-overview", category: "Pages", title: "Executive Overview", subtitle: "KPI metrics, revenue area chart & store breakdown", href: "/" },
   { id: "p-sales", category: "Pages", title: "Sales & Revenue Analytics", subtitle: "Velocity, basket value scatter & growth SKUs", href: "/sales" },
   { id: "p-customers", category: "Pages", title: "Customer Intelligence", subtitle: "3x3 RFM matrix grid & churn risk score", href: "/customers" },
@@ -67,7 +67,7 @@ export default function CmdKModal() {
 
   if (!isCmdKOpen) return null;
 
-  const filteredItems = SEARCH_ITEMS.filter((item) => {
+  const filteredItems = searchItems.filter((item) => {
     const matchesCategory = activeCategory === "All" || item.category === activeCategory;
     const matchesQuery =
       item.title.toLowerCase().includes(query.toLowerCase()) ||
@@ -87,10 +87,10 @@ export default function CmdKModal() {
         className="fixed inset-0"
         onClick={() => setIsCmdKOpen(false)}
       />
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden z-10 flex flex-col max-h-[80vh]">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-10 flex flex-col max-h-[80vh]">
         {/* Search Header */}
-        <div className="flex items-center px-4 py-3.5 border-b border-slate-200 bg-white">
-          <Search className="w-5 h-5 text-indigo-600 mr-3 flex-shrink-0" />
+        <div className="flex items-center px-4 py-3 border-b border-slate-100 bg-white">
+          <Search className="w-4 h-4 text-slate-400 mr-2.5 flex-shrink-0" />
           <input
             type="text"
             placeholder="Search SKUs, Customers, Fraud flags, Anomalies, or Pages... (Cmd+K)"
@@ -111,7 +111,7 @@ export default function CmdKModal() {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 border-b border-slate-200 overflow-x-auto text-xs font-medium">
+        <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-50/70 border-b border-slate-100 overflow-x-auto text-xs font-medium scrollbar-none">
           {["All", "Pages", "SKUs", "Fraud", "Anomalies", "Customers"].map((cat) => (
             <button
               key={cat}
@@ -119,9 +119,9 @@ export default function CmdKModal() {
                 setActiveCategory(cat);
                 setSelectedIndex(0);
               }}
-              className={`px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded-md transition-colors whitespace-nowrap text-xs ${
                 activeCategory === cat
-                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold"
+                  ? "bg-slate-900 text-white font-medium shadow-sm"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
@@ -131,7 +131,7 @@ export default function CmdKModal() {
         </div>
 
         {/* Search Results */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
           {filteredItems.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-sm">
               No matching records found for &quot;{query}&quot;
@@ -144,57 +144,35 @@ export default function CmdKModal() {
                   key={item.id}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-150 ${
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg cursor-pointer transition-colors ${
                     isSelected
-                      ? "bg-indigo-50/80 border border-indigo-200 text-slate-900"
+                      ? "bg-slate-100 text-slate-900"
                       : "hover:bg-slate-50 text-slate-700"
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`p-2 rounded-lg ${
-                        item.category === "Pages"
-                          ? "bg-indigo-50 text-indigo-600 border border-indigo-100"
-                          : item.category === "SKUs"
-                          ? "bg-amber-50 text-amber-600 border border-amber-100"
-                          : item.category === "Fraud"
-                          ? "bg-rose-50 text-rose-600 border border-rose-100"
-                          : item.category === "Anomalies"
-                          ? "bg-amber-50 text-amber-600 border border-amber-100"
-                          : "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                      }`}
-                    >
-                      {item.category === "SKUs" && <Package className="w-4 h-4" />}
-                      {item.category === "Fraud" && <Shield className="w-4 h-4" />}
-                      {item.category === "Anomalies" && <AlertTriangle className="w-4 h-4" />}
-                      {item.category === "Customers" && <Users className="w-4 h-4" />}
-                      {item.category === "Pages" && <Sparkles className="w-4 h-4" />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold truncate text-slate-900">
-                          {item.title}
+                  <div className="min-w-0 pr-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate text-slate-900">
+                        {item.title}
+                      </span>
+                      {item.badge && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                            item.badgeColor || "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {item.badge}
                         </span>
-                        {item.badge && (
-                          <span
-                            className={`px-1.5 py-0.5 rounded-lg text-xs font-medium ${
-                              item.badgeColor || "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 truncate mt-0.5 font-sans">
-                        {item.subtitle}
-                      </p>
+                      )}
                     </div>
+                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                      {item.subtitle}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400 flex-shrink-0 ml-2">
-                    <span className="text-xs font-mono uppercase bg-slate-100 px-2 py-0.5 rounded-lg text-slate-600 border border-slate-200 font-medium">
+                  <div className="flex items-center flex-shrink-0">
+                    <span className="text-[11px] uppercase tracking-wider text-slate-500 font-medium px-2 py-0.5 rounded bg-slate-100/80 border border-slate-200/60">
                       {item.category}
                     </span>
-                    <ArrowRight className="w-3.5 h-3.5" />
                   </div>
                 </div>
               );
@@ -203,17 +181,20 @@ export default function CmdKModal() {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-4">
+        <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700">↑↓</kbd> Navigate
+              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] font-mono text-slate-600">↑↓</kbd> Navigate
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700">↵</kbd> Select
+              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] font-mono text-slate-600">↵</kbd> Open
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] font-mono text-slate-600">esc</kbd> Close
             </span>
           </div>
-          <span className="flex items-center gap-1 text-indigo-600 font-mono text-xs font-semibold">
-            <Command className="w-3 h-3" /> Omniprompt Engine
+          <span className="text-[11px] text-slate-400">
+            Quick Navigation
           </span>
         </div>
       </div>

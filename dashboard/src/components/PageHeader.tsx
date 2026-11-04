@@ -16,7 +16,7 @@ export default function PageHeader({
   action,
 }: PageHeaderProps) {
   return (
-    <div data-pdf-block="true" className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
+    <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight font-sans">
           {title}
